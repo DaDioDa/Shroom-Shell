@@ -1,4 +1,4 @@
-import type { CancelMode, HistoryDetail, HistoryRow, ImportResult, QueueSnapshot, QuietSearchParams, Region, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
+import type { CancelMode, HistoryDetail, HistoryRow, ImportResult, QueueSnapshot, QuietSearchParams, Region, Settings, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -25,6 +25,8 @@ export const api = {
   startTargetSearch: (p: TargetSearchParams) => call<{ batchId: number }>("POST", "/api/batches/target-search", p),
   startQuietSearch: (p: QuietSearchParams) => call<{ batchId: number }>("POST", "/api/batches/quiet-search", p),
   startPostcardCheck: (p: { listId: number }) => call<{ batchId: number }>("POST", "/api/batches/postcard-check", p),
+  settings: () => call<Settings>("GET", "/api/settings"),
+  saveSettings: (s: Settings) => call<Settings>("PUT", "/api/settings", s),
   quietStats: () => call<{ avgMsPerPoint: number | null }>("GET", "/api/quiet-stats"),
   startDiscovery: (p: { name: string; region: Region; radius: number; spacing: number; confirmed?: boolean }) =>
     call<{ batchId: number; listId: number }>("POST", "/api/batches/discovery", p),

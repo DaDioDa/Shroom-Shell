@@ -55,6 +55,8 @@ export interface StoredSighting extends BotSighting {
   /** 後端提供的截圖網址；run 資料夾裡沒有該檔就是 null。 */
   frameUrl: string | null;
   postcardUrl: string | null;
+  /** 所屬 Batch 的 run 資料夾已因超過上限被清掉（圖片不在了，文字結果還在）。 */
+  imagesCleared: boolean;
 }
 
 /** queued＝排隊中；cancelled＝被取消（排隊時移出、跑完這點就停、強制停止）。 */
@@ -129,6 +131,14 @@ export interface HistoryRow {
   createdAt: string;
   finishedAt: string | null;
   summary: string;
+  /** run 資料夾已清除，只剩文字結果。 */
+  imagesCleared: boolean;
+}
+
+/** 可在設定調整的項目。 */
+export interface Settings {
+  /** run 資料夾總量上限（bytes）。 */
+  runsLimitBytes: number;
 }
 
 /** 歷史頁裡一個 Waypoint 的結果。quiet 只有 Quiet Giant Search 的 Batch 才有。 */

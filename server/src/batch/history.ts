@@ -1,9 +1,11 @@
 import { rmSync } from "node:fs";
-import { basename, join, resolve, sep } from "node:path";
 import { sweepRadius, type HistoryDetail, type HistoryRow, type HistoryWaypoint, type CheckResult, type QuietResult } from "@shell/shared";
 import type { Db } from "../db/database.js";
+import { safeRunPath } from "./runPath.js";
 import { listSightings } from "./store.js";
 import { toOutcome } from "./postcardCheck.js";
+
+export { safeRunPath };
 
 /** 這些狀態的 Batch 還在動（或馬上要動），不能刪。 */
 const isQuiet = (feature: string) => feature === "quiet-search" || feature === "discovery";
@@ -20,6 +22,7 @@ interface BatchRow {
   created_at: string;
   finished_at: string | null;
   list_name: string | null;
+  images_cleared: number;
 }
 interface RunRow {
   idx: number;
@@ -89,6 +92,7 @@ const toRow = (db: Db, b: BatchRow): HistoryRow => ({
   createdAt: b.created_at,
   finishedAt: b.finished_at,
   summary: summarize(db, b),
+  imagesCleared: b.images_cleared === 1,
 });
 
 /** 所有功能的 Batch，新的在前。 */
@@ -124,14 +128,6 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
 }
 
 export type DeleteOutcome = "deleted" | "not-found" | "busy";
-
-/** run 資料夾名稱只認單一路徑段，而且解析後必須真的在 runsDir 底下。 */
-export function safeRunPath(runsDir: string, name: string | null): string | null {
-  if (!name || name === "." || name === ".." || basename(name) !== name || name.includes("/") || name.includes("\\")) return null;
-  const root = resolve(runsDir);
-  const full = resolve(join(root, name));
-  return full.startsWith(root + sep) ? full : null;
-}
 
 /** 刪 Batch：run 資料夾（只刪 runsDir 底下的）與 DB 紀錄。執行中或排隊中的不刪。 */
 export function deleteBatch(db: Db, id: number, runsDir: string): DeleteOutcome {

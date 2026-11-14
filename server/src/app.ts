@@ -13,6 +13,7 @@ import type { Device } from "./device/device.js";
 import { Teleporter } from "./device/teleporter.js";
 import { Adb } from "./device/adb.js";
 import { join } from "node:path";
+import { DEFAULT_RUNS_LIMIT_BYTES } from "./batch/retention.js";
 
 export interface AppOptions {
   /** 資料目錄（SQLite 放這裡）。預設取環境變數 DATA_DIR，再退回 repo 根目錄的 data/。 */
@@ -23,6 +24,8 @@ export interface AppOptions {
   device?: Device;
   /** Teleport 後等多久才呼叫 bot（毫秒）。預設取環境變數 TELEPORT_WAIT_MS，再退回 5000。 */
   waitMs?: number;
+  /** run 資料夾總量上限（bytes）的預設值。取環境變數 RUNS_LIMIT_BYTES，再退回 1 GB；設定裡存過的值優先。 */
+  runsLimitBytes?: number;
 }
 
 export function defaultDataDir(): string {
@@ -211,6 +214,7 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     device: opts.device ?? new Teleporter(new Adb()),
     waitMs: opts.waitMs ?? Number(process.env.TELEPORT_WAIT_MS ?? 5000),
     runsDir: join(dataDir, "runs"),
+    runsLimitBytes: opts.runsLimitBytes ?? (Number(process.env.RUNS_LIMIT_BYTES) > 0 ? Number(process.env.RUNS_LIMIT_BYTES) : DEFAULT_RUNS_LIMIT_BYTES),
   });
 
   return app;

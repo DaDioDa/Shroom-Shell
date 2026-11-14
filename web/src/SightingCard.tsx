@@ -13,12 +13,13 @@ export function SightingCard({ s }: { s: StoredSighting }) {
         地圖
       </a>
       <div className="shots">
-        {s.frameUrl && (
+        {s.imagesCleared && <span className="muted">圖片已清除</span>}
+        {!s.imagesCleared && s.frameUrl && (
           <a href={s.frameUrl} target="_blank" rel="noreferrer">
             <img src={s.frameUrl} alt="截圖" />
           </a>
         )}
-        {s.postcardUrl ? (
+        {s.imagesCleared ? null : s.postcardUrl ? (
           <a href={s.postcardUrl} target="_blank" rel="noreferrer">
             <img src={s.postcardUrl} alt="Postcard" />
           </a>

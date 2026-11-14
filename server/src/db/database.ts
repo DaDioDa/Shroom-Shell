@@ -68,6 +68,10 @@ export function openDb(dataDir: string): Db {
       postcard TEXT,
       run_dir TEXT
     );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS target_names (
       name TEXT PRIMARY KEY,
       last_used TEXT NOT NULL
@@ -75,6 +79,8 @@ export function openDb(dataDir: string): Db {
   `);
   // 舊資料庫沒有 spot_name：CREATE TABLE IF NOT EXISTS 不會補欄位，要自己 ALTER。
   ensureColumn(db, "waypoints", "spot_name", "TEXT");
+  // 圖片已清除（run 資料夾因超過上限被刪）：0／1。
+  ensureColumn(db, "batches", "images_cleared", "INTEGER NOT NULL DEFAULT 0");
   // 每點實測耗時（毫秒，含 Teleport 與等待），Discovery 用它估時間。
   ensureColumn(db, "waypoint_runs", "duration_ms", "INTEGER");
   return db;

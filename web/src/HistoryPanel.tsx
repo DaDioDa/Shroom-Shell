@@ -15,6 +15,19 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [detail, setDetail] = useState<HistoryDetail | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [limitMb, setLimitMb] = useState<string>("");
+  useEffect(() => void api.settings().then((s) => setLimitMb(String(Math.round(s.runsLimitBytes / 1024 ** 2)))), []);
+  const saveLimit = async () => {
+    const mb = Number(limitMb);
+    if (!(mb > 0)) return setMessage("上限要是大於 0 的數字（MB）");
+    setMessage(null);
+    try {
+      await api.saveSettings({ runsLimitBytes: Math.round(mb * 1024 ** 2) });
+    } catch (e) {
+      setMessage((e as Error).message);
+    }
+    await reload();
+  };
 
   const reload = useCallback(async () => setRows(await api.history()), []);
   useEffect(() => void reload(), [reload, refreshKey]);
@@ -43,6 +56,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
           {detail.listName ?? "（清單已刪除）"}｜{STATUS[detail.status] ?? detail.status}｜{fmt(detail.createdAt)} → {fmt(detail.finishedAt)}
         </p>
         <p>{detail.summary}</p>
+        {detail.imagesCleared && <p className="muted">圖片已清除（超過 run 資料夾上限，只保留文字結果）</p>}
         {detail.error && <p className="errors">{detail.error}</p>}
         {detail.waypoints.map((w) =>
           w.check ? (
@@ -73,6 +87,11 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
   return (
     <div>
       <h4>歷史</h4>
+      <label className="muted">
+        run 資料夾上限（MB）{" "}
+        <input type="number" min="1" value={limitMb} onChange={(e) => setLimitMb(e.target.value)} />
+      </label>{" "}
+      <button onClick={saveLimit}>儲存</button>
       {message && <p className="errors">{message}</p>}
       {rows.length === 0 && <p className="muted">還沒有任何 Batch</p>}
       {rows.map((r) => (
@@ -85,6 +104,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
             {r.listName ?? "（清單已刪除）"}｜{fmt(r.createdAt)} → {fmt(r.finishedAt)}
           </div>
           <div>{r.summary}</div>
+          {r.imagesCleared && <div className="muted">圖片已清除</div>}
           <button onClick={() => open(r.id)}>查看</button>{" "}
           <button disabled={busy(r)} title={busy(r) ? "執行中或排隊中的 Batch 不能刪除" : undefined} onClick={() => remove(r)}>
             刪除

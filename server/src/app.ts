@@ -11,7 +11,7 @@ import { registerBatchRoutes } from "./batch/routes.js";
 import { RealBotRunner, type BotRunner } from "./bot/runner.js";
 import type { Device } from "./device/device.js";
 import { Teleporter } from "./device/teleporter.js";
-import { Adb } from "./device/adb.js";
+import { Adb, adbOptionsFromEnv } from "./device/adb.js";
 import { join } from "node:path";
 import { DEFAULT_RUNS_LIMIT_BYTES } from "./batch/retention.js";
 
@@ -215,7 +215,7 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
 
   registerBatchRoutes(app, db, {
     bot: opts.bot ?? new RealBotRunner(),
-    device: opts.device ?? new Teleporter(new Adb()),
+    device: opts.device ?? new Teleporter(new Adb(adbOptionsFromEnv())),
     waitMs: opts.waitMs ?? Number(process.env.TELEPORT_WAIT_MS ?? 5000),
     runsDir: join(dataDir, "runs"),
     runsLimitBytes: opts.runsLimitBytes ?? (Number(process.env.RUNS_LIMIT_BYTES) > 0 ? Number(process.env.RUNS_LIMIT_BYTES) : DEFAULT_RUNS_LIMIT_BYTES),

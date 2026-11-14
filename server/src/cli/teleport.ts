@@ -7,10 +7,10 @@
  *
  * 環境變數 ADB_PATH、ADB_SERIAL 可覆寫 adb 路徑與裝置序號。
  */
-import { Adb } from "../device/adb.js";
+import { Adb, adbOptionsFromEnv } from "../device/adb.js";
 import { Teleporter, TeleportError } from "../device/teleporter.js";
 
-const adb = new Adb({ adbPath: process.env.ADB_PATH, serial: process.env.ADB_SERIAL });
+const adb = new Adb(adbOptionsFromEnv());
 const tp = new Teleporter(adb);
 
 async function main(argv: string[]): Promise<number> {

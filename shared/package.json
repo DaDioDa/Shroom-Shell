@@ -1,0 +1,12 @@
+{
+  "name": "@shell/shared",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": { "typescript": "^5.7.2" }
+}

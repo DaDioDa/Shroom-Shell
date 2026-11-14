@@ -3,8 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
     "teleport": "tsx src/cli/teleport.ts",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@shell/shared": "*",
+    "fastify": "^5.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

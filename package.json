@@ -2,10 +2,16 @@
   "name": "pikmin-bloom-shell",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "server"
-  ],
+  "workspaces": ["shared", "server", "web"],
   "scripts": {
+    "dev": "concurrently -k -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
+    "test": "npm test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
     "teleport": "npm run teleport -w server --"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "vitest": "^3.0.0"
   }
 }

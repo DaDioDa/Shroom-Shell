@@ -1,4 +1,4 @@
-import type { BatchStatus, BotSighting, StoredSighting } from "@shell/shared";
+import type { BatchPoint, BatchStatus, BotSighting, StoredSighting } from "@shell/shared";
 import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Db } from "../db/database.js";
@@ -6,7 +6,7 @@ import type { Db } from "../db/database.js";
 interface SightingRow {
   id: number;
   batch_id: number;
-  waypoint_id: number;
+  waypoint_id: number | null;
   target: string;
   lat: number;
   lng: number;
@@ -60,7 +60,7 @@ export function createBatch(db: Db, feature: string, params: { listId: number },
 export function saveSighting(
   db: Db,
   batchId: number,
-  waypointId: number,
+  waypointId: number | null,
   s: BotSighting,
   runDir: string | null,
   runsDir: string,
@@ -109,11 +109,11 @@ export function listTargets(db: Db): string[] {
 
 export function saveWaypointRun(
   db: Db,
-  run: { batchId: number; waypointId: number; index: number; exitCode: number | null; result: unknown; runDir: string | null; error: string | null; durationMs?: number | null },
+  run: { batchId: number; point: BatchPoint; index: number; exitCode: number | null; result: unknown; runDir: string | null; error: string | null; durationMs?: number | null },
 ): void {
   db.prepare(
-    "INSERT INTO waypoint_runs (batch_id, waypoint_id, idx, exit_code, result_json, run_dir, error, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-  ).run(run.batchId, run.waypointId, run.index, run.exitCode, JSON.stringify(run.result), run.runDir, run.error, run.durationMs ?? null);
+    "INSERT INTO waypoint_runs (batch_id, waypoint_id, lat, lng, label, radius, idx, exit_code, result_json, run_dir, error, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  ).run(run.batchId, run.point.waypointId ?? null, run.point.lat, run.point.lng, run.point.label, run.point.radius ?? null, run.index, run.exitCode, JSON.stringify(run.result), run.runDir, run.error, run.durationMs ?? null);
 }
 
 export function setBatchStatus(db: Db, batchId: number, status: BatchStatus): void {
@@ -135,7 +135,7 @@ export interface BatchRecord {
   error: string | null;
   createdAt: string;
   finishedAt: string | null;
-  runs: { index: number; waypointId: number; exitCode: number | null; runDir: string | null; error: string | null }[];
+  runs: { index: number; waypointId: number | null; exitCode: number | null; runDir: string | null; error: string | null }[];
 }
 
 export function getBatch(db: Db, id: number): BatchRecord | null {
@@ -144,7 +144,7 @@ export function getBatch(db: Db, id: number): BatchRecord | null {
     | undefined;
   if (!b) return null;
   const runs = db.prepare("SELECT * FROM waypoint_runs WHERE batch_id = ? ORDER BY idx").all(id) as unknown as {
-    idx: number; waypoint_id: number; exit_code: number | null; run_dir: string | null; error: string | null;
+    idx: number; waypoint_id: number | null; exit_code: number | null; run_dir: string | null; error: string | null;
   }[];
   return {
     id: b.id,

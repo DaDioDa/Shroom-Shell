@@ -1,7 +1,6 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../app.js";
 import { FakeBotRunner, FakeDevice, TINY_PNG } from "../bot/fakeBot.js";
@@ -78,5 +77,4 @@ describe("刪除 Waypoint List", () => {
     await app.inject({ method: "POST", url: `/api/batches/${first}/cancel`, payload: { mode: "force" } });
     await app.inject(`/api/batches/${first}/events`);
   });
-
 });

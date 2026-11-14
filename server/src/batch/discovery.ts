@@ -1,4 +1,4 @@
-import { sweepRadius, type QuietResult, type Waypoint } from "@shell/shared";
+import { sweepRadius, type QuietResult } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { quietSearchFeature } from "./quietSearch.js";
 import type { BatchFeature } from "./runBatch.js";
@@ -28,8 +28,8 @@ export function discoveryFeature(params: { listId: number; radius: number; regio
     interpret(ctx) {
       const out = quiet.interpret(ctx);
       if ((out.result as QuietResult).verdict === true) {
-        const w: Waypoint = ctx.waypoint;
-        collectDiscovered(ctx.deps.db, params.regionName, w, sweepRadius(w, params.radius));
+        const p = ctx.point;
+        collectDiscovered(ctx.deps.db, params.regionName, p, sweepRadius({ radius: p.radius ?? null }, params.radius));
       }
       return out;
     },

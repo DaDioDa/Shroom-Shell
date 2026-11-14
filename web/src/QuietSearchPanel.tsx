@@ -29,10 +29,7 @@ export function QuietSearchPanel({ list, waypoints, view, onStarted }: Props) {
       setStartError((e as Error).message);
     }
   };
-  const nameOf = (id: number) => {
-    const w = waypoints.find((x) => x.id === id);
-    return w ? w.label || `${w.lat}, ${w.lng}` : `Waypoint ${id}`;
-  };
+  const nameOf = (p: { label: string; lat: number; lng: number }) => p.label || `${p.lat}, ${p.lng}`;
 
   return (
     <div>
@@ -64,7 +61,7 @@ export function QuietSearchPanel({ list, waypoints, view, onStarted }: Props) {
             <QuietResultCard
               key={o.index}
               outcome={o}
-              name={nameOf(o.waypointId)}
+              name={nameOf(o.point)}
               giants={view.sightings.filter((s) => s.waypointId === o.waypointId)}
             />
           ))}

@@ -27,7 +27,7 @@ function seedBatch(runName: string, bytes: number, status = "done"): number {
   const id = Number(
     db.prepare("INSERT INTO batches (list_id, feature, params, status, created_at) VALUES (1, 'target-search', '{}', ?, 'x')").run(status).lastInsertRowid,
   );
-  db.prepare("INSERT INTO waypoint_runs (batch_id, waypoint_id, idx, exit_code, result_json, run_dir) VALUES (?, 1, 1, 0, '[]', ?)").run(id, runName);
+  db.prepare("INSERT INTO waypoint_runs (batch_id, waypoint_id, lat, lng, label, idx, exit_code, result_json, run_dir) VALUES (?, 1, 1, 1, '', 1, 0, '[]', ?)").run(id, runName);
   db.prepare(
     "INSERT INTO sightings (batch_id, waypoint_id, target, lat, lng, spot_name, observed_at, frame, run_dir) VALUES (?, 1, '巨菇', 1, 2, '地點', 't', 'sighting-01.png', ?)",
   ).run(id, runName);

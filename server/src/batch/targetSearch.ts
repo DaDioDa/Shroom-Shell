@@ -1,13 +1,13 @@
-import type { BotSighting, TargetSearchParams, Waypoint } from "@shell/shared";
+import type { BotSighting, BatchPoint, TargetSearchParams } from "@shell/shared";
 import { parseHuntStdout } from "../bot/parseHunt.js";
 import type { BatchFeature } from "./runBatch.js";
 import { saveSighting } from "./store.js";
 
 export { failureReason } from "./runBatch.js";
 
-export function huntArgs(params: TargetSearchParams, waypoint: Waypoint): string[] {
+export function huntArgs(params: TargetSearchParams, point: BatchPoint): string[] {
   return [
-    "--radius", String(waypoint.radius ?? params.radius),
+    "--radius", String(point.radius ?? params.radius),
     ...params.targets.flatMap((t) => ["--target", t]),
     "--skip-crowded", String(params.skipCrowded),
   ];
@@ -17,7 +17,7 @@ export function huntArgs(params: TargetSearchParams, waypoint: Waypoint): string
 export function targetSearchFeature(params: TargetSearchParams): BatchFeature {
   return {
     plan: (w) => ({ command: "hunt", args: huntArgs(params, w) }),
-    interpret({ deps, batchId, waypoint, result, runName }) {
+    interpret({ deps, batchId, point, result, runName }) {
       let sightings: BotSighting[] = [];
       let error: string | null = null;
       try {
@@ -28,7 +28,7 @@ export function targetSearchFeature(params: TargetSearchParams): BatchFeature {
         error = (e as Error).message;
       }
       for (const s of sightings) {
-        const saved = saveSighting(deps.db, batchId, waypoint.id, s, runName, deps.runsDir);
+        const saved = saveSighting(deps.db, batchId, point.waypointId ?? null, s, runName, deps.runsDir);
         deps.hub.emit(batchId, { type: "sighting", sighting: saved });
       }
       return { result: sightings, error };

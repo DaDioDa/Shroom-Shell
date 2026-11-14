@@ -1,7 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ImportResult, Waypoint, WaypointList } from "@shell/shared";
 import { buildApp } from "./app.js";
@@ -169,5 +168,4 @@ describe("Waypoint List API", () => {
     expect(body.errors).toEqual([{ line: 2, text: "https://maps.app.goo.gl/abc", reason: expect.stringContaining("短網址") }]);
     await app.close();
   });
-
 });

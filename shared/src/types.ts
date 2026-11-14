@@ -24,6 +24,22 @@ export interface Waypoint {
   spotName: string | null;
 }
 
+/** Batch 依序走的單位：一個位置加上當時的標籤、半徑、Spot Name。Waypoint 與（之後的）Grid Cell 都轉成點再進 runBatch。 */
+export interface BatchPoint {
+  lat: number;
+  lng: number;
+  label: string;
+  radius?: number | null;
+  spotName?: string | null;
+  /** 來自 Waypoint 才有；Waypoint 之後被刪掉，這裡仍留著當時的 id。 */
+  waypointId?: number | null;
+}
+
+/** 清單的 Waypoint → 點。 */
+export function waypointToPoint(w: Waypoint): BatchPoint {
+  return { lat: w.lat, lng: w.lng, label: w.label, radius: w.radius, spotName: w.spotName ?? null, waypointId: w.id };
+}
+
 export interface ImportLineError {
   line: number;
   text: string;
@@ -57,7 +73,7 @@ export interface BotSighting {
 export interface StoredSighting extends BotSighting {
   id: number;
   batchId: number;
-  waypointId: number;
+  waypointId: number | null;
   /** 後端提供的截圖網址；run 資料夾裡沒有該檔就是 null。 */
   frameUrl: string | null;
   postcardUrl: string | null;
@@ -96,12 +112,12 @@ export interface TargetSearchParams {
 export type BatchEvent =
   | { type: "queued"; batchId: number; position: number }
   | { type: "started"; batchId: number; total: number }
-  | { type: "progress"; index: number; total: number; waypointId: number; label: string }
+  | { type: "progress"; index: number; total: number; waypointId: number | null; label: string }
   | { type: "stderr"; index: number; line: string }
   | { type: "sighting"; sighting: StoredSighting }
   | { type: "waypoint-failed"; index: number; error: string; screenshotUrl?: string }
   /** Quiet Giant Search：一個 Waypoint 的答案。radius 是這點實際用的半徑（公尺）。 */
-  | { type: "quiet-result"; index: number; waypointId: number; radius: number; result: QuietResult; screenshotUrl?: string }
+  | { type: "quiet-result"; index: number; waypointId: number | null; point: BatchPoint; radius: number; result: QuietResult; screenshotUrl?: string }
   /** Postcard Check：一個 Waypoint 的答案。 */
   | { type: "check-result"; outcome: CheckOutcome }
   | { type: "finished"; status: BatchStatus; error?: string };
@@ -151,8 +167,10 @@ export interface Settings {
 /** 歷史頁裡一個 Waypoint 的結果。quiet 只有 Quiet Giant Search 的 Batch 才有。 */
 export interface HistoryWaypoint {
   index: number;
-  waypointId: number;
+  waypointId: number | null;
   label: string;
+  /** 執行當時的點（清單或 Waypoint 之後被刪、被改都不受影響）。 */
+  point: BatchPoint;
   exitCode: number | null;
   error: string | null;
   runDir: string | null;

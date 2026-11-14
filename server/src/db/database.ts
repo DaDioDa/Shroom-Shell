@@ -30,6 +30,7 @@ export function openDb(dataDir: string): Db {
       spot_name TEXT
     );
   `);
+  // 之後新增的表。不做舊資料遷移：表的結構一律以這裡為準（舊的 data/app.db 要清掉重來）。
   db.exec(`
     CREATE TABLE IF NOT EXISTS batches (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +47,11 @@ export function openDb(dataDir: string): Db {
     CREATE TABLE IF NOT EXISTS waypoint_runs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       batch_id INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
-      waypoint_id INTEGER NOT NULL,
+      waypoint_id INTEGER,
+      lat REAL NOT NULL,
+      lng REAL NOT NULL,
+      label TEXT NOT NULL DEFAULT '',
+      radius REAL,
       idx INTEGER NOT NULL,
       exit_code INTEGER,
       result_json TEXT,
@@ -57,7 +62,7 @@ export function openDb(dataDir: string): Db {
     CREATE TABLE IF NOT EXISTS sightings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       batch_id INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
-      waypoint_id INTEGER NOT NULL,
+      waypoint_id INTEGER,
       target TEXT NOT NULL,
       lat REAL NOT NULL,
       lng REAL NOT NULL,

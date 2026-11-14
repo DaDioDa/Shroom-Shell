@@ -95,22 +95,18 @@ export function App() {
     setWaypoints(await api.reorder(selectedId, ids));
   };
 
-  // 地圖只畫目前功能分頁選定清單的 Waypoint（waypoints 在其他分頁是空的，下面的結果也就畫不出來）。
+  // 地圖只畫目前功能分頁選定清單的 Waypoint。
   const mapWaypoints = feature ? waypoints : [];
 
-  // Quiet Giant Search 的結果：以該 Waypoint 為中心、邊長 2R 的正方形。
+  // Quiet Giant Search 的結果：用執行當時記下的點（不回查目前清單），以它為中心、邊長 2R 的正方形。
   const areas: SweepArea[] = view.quietResults.flatMap((o) => {
-    const w = mapWaypoints.find((x) => x.id === o.waypointId);
-    if (!w) return [];
-    return [{ lat: w.lat, lng: w.lng, radius: o.radius, color: sweepAreaColor(o.result.verdict), tooltip: o.result.reason }];
+    return [{ lat: o.point.lat, lng: o.point.lng, radius: o.radius, color: sweepAreaColor(o.result.verdict), tooltip: o.result.reason }];
   });
 
   const checkMarks: CheckMark[] = view.checkResults.flatMap((o) => {
-    const w = mapWaypoints.find((x) => x.id === o.waypointId);
-    if (!w) return [];
     const d = describePostcardCheck(o.result, Date.now());
     const kind = o.result.found === true ? "found" : o.result.found === false ? "missing" : "unfinished";
-    return [{ lat: w.lat, lng: w.lng, kind, tooltip: `${d.title}｜${d.message}` } as CheckMark];
+    return [{ lat: o.point.lat, lng: o.point.lng, kind, tooltip: `${d.title}｜${d.message}` } as CheckMark];
   });
 
   const tabButton = (t: Tab, label: string) => (

@@ -34,8 +34,8 @@ export const api = {
   history: (feature?: string) => call<HistoryRow[]>("GET", feature ? `/api/history?feature=${feature}` : "/api/history"),
   historyDetail: (id: number) => call<HistoryDetail>("GET", `/api/history/${id}`),
   deleteBatch: (id: number) => call<void>("DELETE", `/api/batches/${id}`),
-  addWaypoint: (listId: number, lat: number, lng: number) =>
-    call<Waypoint>("POST", `/api/lists/${listId}/waypoints`, { lat, lng }),
+  addWaypoint: (listId: number, lat: number, lng: number, spotName?: string) =>
+    call<Waypoint>("POST", `/api/lists/${listId}/waypoints`, { lat, lng, ...(spotName ? { spotName } : {}) }),
   updateWaypoint: (id: number, patch: { label?: string; radius?: number | null; spotName?: string | null }) =>
     call<Waypoint>("PATCH", `/api/waypoints/${id}`, patch),
   deleteWaypoint: (id: number) => call<void>("DELETE", `/api/waypoints/${id}`),

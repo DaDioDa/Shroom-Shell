@@ -3,9 +3,10 @@ import Fastify, { type FastifyInstance } from "fastify";
 import {
   parseMapsLink,
   parseWaypointText,
+  checkWaypointFields,
   type ParsedWaypoint,
   type ParseError,
-  isListFeature, type ImportResult, type Waypoint, type WaypointList } from "@shell/shared";
+  isListFeature, type ListFeature, type ImportResult, type Waypoint, type WaypointList } from "@shell/shared";
 import { openDb } from "./db/database.js";
 import { registerBatchRoutes } from "./batch/routes.js";
 import { RealBotRunner, type BotRunner } from "./bot/runner.js";
@@ -55,7 +56,7 @@ const toWaypoint = (r: WaypointRow): Waypoint => ({
 });
 
 /** 匯入文字：每行是 `lat,lng [標籤]` 或 Google Maps 連結。 */
-function parseImportText(text: string): { waypoints: ParsedWaypoint[]; errors: ParseError[] } {
+function parseImportText(text: string, feature: ListFeature): { waypoints: ParsedWaypoint[]; errors: ParseError[] } {
   const waypoints: ParsedWaypoint[] = [];
   const errors: ParseError[] = [];
   text.split(/\r?\n/).forEach((raw, i) => {
@@ -63,11 +64,14 @@ function parseImportText(text: string): { waypoints: ParsedWaypoint[]; errors: P
     if (!line) return;
     if (/^(https?:[/][/]|(maps[.]app[.])?goo[.]gl)/i.test(line)) {
       const r = parseMapsLink(line);
-      if (r.ok) waypoints.push({ lat: r.lat, lng: r.lng, label: "", radius: null });
-      else errors.push({ line: i + 1, text: raw, reason: r.reason });
+      if (r.ok) {
+        const c = checkWaypointFields(feature, { radius: null, spotName: null });
+        if (c.ok) waypoints.push({ lat: r.lat, lng: r.lng, label: "", radius: null });
+        else errors.push({ line: i + 1, text: raw, reason: c.reason });
+      } else errors.push({ line: i + 1, text: raw, reason: r.reason });
       return;
     }
-    const one = parseWaypointText(raw);
+    const one = parseWaypointText(raw, feature);
     waypoints.push(...one.waypoints);
     errors.push(...one.errors.map((e) => ({ ...e, line: i + 1 })));
   });
@@ -81,6 +85,8 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   app.addHook("onClose", async () => db.close());
 
   const listExists = (id: number) => db.prepare("SELECT 1 FROM waypoint_lists WHERE id = ?").get(id) !== undefined;
+  const listFeatureOf = (id: number): ListFeature | undefined =>
+    (db.prepare("SELECT feature FROM waypoint_lists WHERE id = ?").get(id) as { feature: ListFeature } | undefined)?.feature;
   const parseName = (body: unknown): string | null => {
     const name = (body as { name?: unknown } | null)?.name;
     return typeof name === "string" && name.trim() ? name.trim() : null;
@@ -146,8 +152,9 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     const id = Number(req.params.id);
     const text = (req.body as { text?: unknown } | null)?.text;
     if (typeof text !== "string") return reply.code(400).send({ error: "text 必填" });
-    if (!listExists(id)) return reply.code(404).send({ error: "找不到清單" });
-    const { waypoints, errors } = parseImportText(text);
+    const feature = listFeatureOf(id);
+    if (!feature) return reply.code(404).send({ error: "找不到清單" });
+    const { waypoints, errors } = parseImportText(text, feature);
     const start = (db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM waypoints WHERE list_id = ?").get(id) as {
       n: number;
     }).n;
@@ -167,16 +174,21 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
 
   app.post<{ Params: { id: string } }>("/api/lists/:id/waypoints", async (req, reply) => {
     const id = Number(req.params.id);
-    if (!listExists(id)) return reply.code(404).send({ error: "找不到清單" });
-    const b = (req.body ?? {}) as { lat?: unknown; lng?: unknown; label?: unknown };
+    const feature = listFeatureOf(id);
+    if (!feature) return reply.code(404).send({ error: "找不到清單" });
+    const b = (req.body ?? {}) as { lat?: unknown; lng?: unknown; label?: unknown; radius?: unknown; spotName?: unknown };
     if (!isCoord(b.lat, b.lng)) return reply.code(400).send({ error: "lat／lng 不合法" });
     const label = typeof b.label === "string" ? b.label.trim() : "";
+    const radius = typeof b.radius === "number" && b.radius > 0 ? b.radius : null;
+    const spotName = typeof b.spotName === "string" && b.spotName.trim() ? b.spotName.trim() : null;
+    const check = checkWaypointFields(feature, { radius, spotName });
+    if (!check.ok) return reply.code(400).send({ error: check.reason });
     const pos = (db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM waypoints WHERE list_id = ?").get(id) as {
       n: number;
     }).n;
     const r = db
-      .prepare("INSERT INTO waypoints (list_id, position, lat, lng, label) VALUES (?, ?, ?, ?, ?)")
-      .run(id, pos, b.lat as number, b.lng as number, label);
+      .prepare("INSERT INTO waypoints (list_id, position, lat, lng, label, radius, spot_name) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(id, pos, b.lat as number, b.lng as number, label, radius, spotName);
     return reply.code(201).send(toWaypoint(getWaypoint(Number(r.lastInsertRowid))!));
   });
 
@@ -189,6 +201,8 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     const radius = b.radius === null ? null : typeof b.radius === "number" && b.radius > 0 ? b.radius : row.radius;
     const spotName =
       b.spotName === null ? null : typeof b.spotName === "string" ? b.spotName.trim() || null : row.spot_name;
+    const check = checkWaypointFields(listFeatureOf(row.list_id)!, { radius, spotName });
+    if (!check.ok) return reply.code(400).send({ error: check.reason });
     db.prepare("UPDATE waypoints SET label = ?, radius = ?, spot_name = ? WHERE id = ?").run(label, radius, spotName, id);
     return toWaypoint(getWaypoint(id)!);
   });

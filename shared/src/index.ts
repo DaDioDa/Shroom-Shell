@@ -10,3 +10,4 @@ export * from "./sightingExpiry.js";
 export * from "./postcardCheck.js";
 export * from "./featureNames.js";
 export * from "./discoveryNaming.js";
+export * from "./sliders.js";

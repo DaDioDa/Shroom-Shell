@@ -1,20 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { GIANT_TARGET, addTarget, batchStatusText, featureName, type BatchView, type WaypointList } from "@shell/shared";
+import { GIANT_TARGET, SLIDER_SPECS, addTarget, batchStatusText, featureName, type BatchView, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { SightingCard } from "./SightingCard.js";
+import { Slider } from "./Slider.js";
+import { useStoredSlider } from "./storage.js";
 
 interface Props {
   list: WaypointList | null;
   view: BatchView;
+  radius: number;
+  onRadiusChange: (r: number) => void;
   onStarted: (batchId: number) => void;
 }
 
-export function TargetSearchPanel({ list, view, onStarted }: Props) {
+export function TargetSearchPanel({ list, view, radius, onRadiusChange, onStarted }: Props) {
   const [targets, setTargets] = useState<string[]>([]);
   const [input, setInput] = useState("");
   const [known, setKnown] = useState<string[]>([]);
-  const [radius, setRadius] = useState(500);
-  const [skipCrowded, setSkipCrowded] = useState(0);
+  const [skipCrowded, setSkipCrowded] = useStoredSlider("slider.skipCrowded", SLIDER_SPECS.skipCrowded);
   const [startError, setStartError] = useState<string | null>(null);
   const log = useRef<HTMLPreElement>(null);
 
@@ -71,18 +74,8 @@ export function TargetSearchPanel({ list, view, onStarted }: Props) {
       </datalist>
       <button onClick={() => add(GIANT_TARGET)}>巨菇</button>
 
-      <div>
-        <label>
-          預設半徑（公尺）
-          <input type="number" min={1} value={radius} onChange={(e) => setRadius(Number(e.target.value))} />
-        </label>
-      </div>
-      <div>
-        <label>
-          --skip-crowded（0 = 不略過）
-          <input type="number" min={0} value={skipCrowded} onChange={(e) => setSkipCrowded(Number(e.target.value))} />
-        </label>
-      </div>
+      <Slider label="預設半徑" spec={SLIDER_SPECS.radius} value={radius} unit="m" disabled={running || queued} onChange={onRadiusChange} />
+      <Slider label="--skip-crowded" spec={SLIDER_SPECS.skipCrowded} value={skipCrowded} disabled={running || queued} valueText={(v) => (v === 0 ? "不略過" : null)} onChange={setSkipCrowded} />
       <button disabled={!list || (targets.length === 0 && !input.trim())} onClick={start}>
         開始
       </button>

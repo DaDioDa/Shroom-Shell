@@ -21,7 +21,7 @@ const aborted: FakeReply = {
   exitCode: 2, stdout: "", stderr: ["中止：找不到 Postcard"], files: { "abort.png": TINY_PNG, "abort.txt": "找不到 Postcard\n" },
 };
 
-async function run(url: string, extra: object, reply: FakeReply, text = "1,1 @甲") {
+async function run(url: string, extra: object, reply: FakeReply, text = url.endsWith("postcard-check") ? "1,1 @甲" : "1,1") {
   const app = buildApp({ dataDir: dir, bot: new FakeBotRunner(() => reply), device: new FakeDevice(), waitMs: 0 });
   apps.push(app);
   const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "L", feature: url.split("/").pop() } })).json();

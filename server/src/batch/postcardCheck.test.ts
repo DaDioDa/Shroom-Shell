@@ -1,3 +1,4 @@
+import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -95,11 +96,16 @@ describe("Postcard Check Batch", () => {
   });
 
   it("缺 Spot Name：400，列出缺的是哪幾個，不碰手機", async () => {
-    const t = await setup("1,2 甲 @A" + NL + "3,4 乙" + NL + "5,6 @ ", () => foundReply(0));
+    // 匯入已擋掉缺 Spot Name 的行，所以直接寫進資料庫，模擬既有資料；Batch 開始前仍要再檢查一次。
+    const t = await setup("1,2 甲 @A", () => foundReply(0));
+    const db = new DatabaseSync(join(dir, "app.db"));
+    db.prepare("INSERT INTO waypoints (list_id, position, lat, lng, label) VALUES (?, 1, 3, 4, '乙')").run(t.listId);
+    db.prepare("INSERT INTO waypoints (list_id, position, lat, lng, label, spot_name) VALUES (?, 2, 5, 6, '', '')").run(t.listId);
+    db.close();
     const res = await t.app.inject({ method: "POST", url: "/api/batches/postcard-check", payload: { listId: t.listId } });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toContain("乙");
-    expect(res.json().missing).toHaveLength(1);
+    expect(res.json().missing).toHaveLength(2);
     expect(t.bot.calls).toHaveLength(0);
     expect(t.device.log).toEqual([]);
   });

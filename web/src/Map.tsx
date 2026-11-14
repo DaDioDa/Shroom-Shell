@@ -15,13 +15,13 @@ export interface SweepArea {
   lat: number;
   lng: number;
   radius: number;
-  color: SweepAreaColor;
+  color: SweepAreaColor | "preview";
   tooltip?: string;
   /** 點方格時回報給 onAreaClick 的識別（Discovery 的 Grid Cell 用）。 */
   id?: number;
 }
 
-const AREA_COLORS: Record<SweepAreaColor, string> = { green: "#2f9e44", red: "#e03131", gray: "#868e96" };
+const AREA_COLORS: Record<SweepAreaColor | "preview", string> = { green: "#2f9e44", red: "#e03131", gray: "#868e96", preview: "#1971c2" };
 
 export function WaypointMap({
   waypoints,

@@ -10,9 +10,13 @@ const busy = (r: { status: string }) => r.status === "running" || r.status === "
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");
 
 /** 歷史頁：所有功能的 Batch；點進去看每個 Waypoint 的結果（從 DB 讀，重新整理也在）；可刪除。 */
-export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
+export function HistoryPanel({ refreshKey, onDetail }: { refreshKey: unknown; onDetail: (d: HistoryDetail | null) => void }) {
   const [rows, setRows] = useState<HistoryRow[]>([]);
-  const [detail, setDetail] = useState<HistoryDetail | null>(null);
+  const [detail, setDetailState] = useState<HistoryDetail | null>(null);
+  // 點選的 Batch 也交給 App，地圖才能畫它的結果。
+  const setDetail = (d: HistoryDetail | null) => (setDetailState(d), onDetail(d));
+  useEffect(() => () => onDetail(null), []); // 離開歷史分頁就不再畫
+  const [filter, setFilter] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [limitMb, setLimitMb] = useState<string>("");
   useEffect(() => void api.settings().then((s) => setLimitMb(String(Math.round(s.runsLimitBytes / 1024 ** 2)))), []);
@@ -28,7 +32,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
     await reload();
   };
 
-  const reload = useCallback(async () => setRows(await api.history()), []);
+  const reload = useCallback(async () => setRows(await api.history(filter || undefined)), [filter]);
   useEffect(() => void reload(), [reload, refreshKey]);
 
   const open = async (id: number) => setDetail(await api.historyDetail(id));
@@ -91,6 +95,17 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
   return (
     <div>
       <h4>歷史</h4>
+      <label className="muted">
+        功能{" "}
+        <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+          <option value="">全部</option>
+          {["quiet-search", "discovery", "postcard-check", "target-search"].map((f) => (
+            <option key={f} value={f}>
+              {featureName(f)}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="muted">
         run 資料夾上限（MB）{" "}
         <input type="number" min="1" value={limitMb} onChange={(e) => setLimitMb(e.target.value)} />

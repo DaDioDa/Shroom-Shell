@@ -19,7 +19,7 @@ export const api = {
   renameList: (id: number, name: string) => call<WaypointList>("PATCH", `/api/lists/${id}`, { name }),
   deleteList: (id: number) => call<void>("DELETE", `/api/lists/${id}`),
   waypoints: (id: number) => call<Waypoint[]>("GET", `/api/lists/${id}/waypoints`),
-  sightings: () => call<StoredSighting[]>("GET", "/api/sightings"),
+  sightings: (feature?: string) => call<StoredSighting[]>("GET", feature ? `/api/sightings?feature=${feature}` : "/api/sightings"),
   queue: () => call<QueueSnapshot>("GET", "/api/queue"),
   cancelBatch: (id: number, mode: CancelMode) => call<{ ok: true }>("POST", `/api/batches/${id}/cancel`, { mode }),
   targets: () => call<string[]>("GET", "/api/targets"),
@@ -31,7 +31,7 @@ export const api = {
   quietStats: () => call<{ avgMsPerPoint: number | null }>("GET", "/api/quiet-stats"),
   startDiscovery: (p: { name: string; region: Region; radius: number; spacing: number; confirmed?: boolean }) =>
     call<{ batchId: number; listId: number }>("POST", "/api/batches/discovery", p),
-  history: () => call<HistoryRow[]>("GET", "/api/history"),
+  history: (feature?: string) => call<HistoryRow[]>("GET", feature ? `/api/history?feature=${feature}` : "/api/history"),
   historyDetail: (id: number) => call<HistoryDetail>("GET", `/api/history/${id}`),
   deleteBatch: (id: number) => call<void>("DELETE", `/api/batches/${id}`),
   addWaypoint: (listId: number, lat: number, lng: number) =>

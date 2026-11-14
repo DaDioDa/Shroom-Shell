@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { describePostcardCheck, featureName, sweepAreaColor, visibleSightings, type ListFeature, type Region, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
+import { describePostcardCheck, featureName, sweepAreaColor, visibleSightings, type ListFeature, type HistoryDetail, type Region, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap, type CheckMark, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
@@ -10,11 +10,13 @@ import { PostcardCheckPanel } from "./PostcardCheckPanel.js";
 import { QuietSearchPanel } from "./QuietSearchPanel.js";
 import { TargetSearchPanel } from "./TargetSearchPanel.js";
 import { useNow } from "./useNow.js";
-import { useBatchView } from "./useBatchView.js";
+import { BATCH_FEATURES, useBatchViews, type BatchFeature } from "./useBatchView.js";
 
 type Tab = "quiet" | "discovery" | "postcard" | "target" | "history";
 /** 有清單的功能分頁；探索區域與歷史分頁不屬於任何清單。 */
 const TAB_FEATURE: Partial<Record<Tab, ListFeature>> = { quiet: "quiet-search", postcard: "postcard-check", target: "target-search" };
+/** 各分頁對應的 Batch 功能（歷史分頁沒有）。 */
+const TAB_BATCH: Partial<Record<Tab, BatchFeature>> = { quiet: "quiet-search", discovery: "discovery", postcard: "postcard-check", target: "target-search" };
 const noLists = (): Record<ListFeature, WaypointList[]> => ({ "quiet-search": [], "postcard-check": [], "target-search": [] });
 const noSelection = (): Record<ListFeature, number | null> => ({ "quiet-search": null, "postcard-check": null, "target-search": null });
 
@@ -27,13 +29,20 @@ export function App() {
   const [region, setRegion] = useState<Region | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [showAllSightings, setShowAllSightings] = useState(false);
-  const { view, follow } = useBatchView();
+  const { views, follow } = useBatchViews();
   const now = useNow();
-  const [allSightings, setAllSightings] = useState<StoredSighting[]>([]);
-  // 地圖的 Sighting 來自 SQLite 全部 Batch；跟隨中的 Batch 有新 Sighting 或結束時重抓。
+  const [historyDetail, setHistoryDetail] = useState<HistoryDetail | null>(null);
+  const batchFeature = TAB_BATCH[tab] ?? null;
+  // 目前分頁的 BatchView；歷史分頁沒有，用一個空的。
+  const view = batchFeature ? views[batchFeature] : views["quiet-search"];
+  const [tabSightings, setTabSightings] = useState<StoredSighting[]>([]);
+  // 指定菇菇分頁的 Sighting 來自 SQLite、只取該功能的；跟隨中的 Batch 有新 Sighting 或結束時重抓。
+  const targetView = views["target-search"];
   useEffect(() => {
-    void api.sightings().then(setAllSightings).catch(() => {});
-  }, [view.sightings.length, view.status]);
+    void api.sightings("target-search").then(setTabSightings).catch(() => {});
+  }, [targetView.sightings.length, targetView.status]);
+  // 底部抽屜是全域的：有在跑的 Batch 就顯示它，否則顯示目前分頁的。
+  const drawerView = BATCH_FEATURES.map((f) => views[f]).find((v) => v.status === "running") ?? view;
 
   const feature = TAB_FEATURE[tab] ?? null;
   const lists = feature ? listsBy[feature] : [];
@@ -99,15 +108,20 @@ export function App() {
   const mapWaypoints = feature ? waypoints : [];
 
   // Quiet Giant Search 的結果：用執行當時記下的點（不回查目前清單），以它為中心、邊長 2R 的正方形。
-  const areas: SweepArea[] = view.quietResults.flatMap((o) => {
+  const sweepSource = tab === "history" ? (historyDetail?.waypoints.flatMap((w) => (w.quiet ? [{ point: w.point, radius: w.quiet.radius, result: w.quiet.result }] : [])) ?? []) : tab === "quiet" || tab === "discovery" ? view.quietResults : [];
+  const areas: SweepArea[] = sweepSource.flatMap((o) => {
     return [{ lat: o.point.lat, lng: o.point.lng, radius: o.radius, color: sweepAreaColor(o.result.verdict), tooltip: o.result.reason }];
   });
 
-  const checkMarks: CheckMark[] = view.checkResults.flatMap((o) => {
+  const checkSource = tab === "history" ? (historyDetail?.waypoints.flatMap((w) => (w.check ? [w.check] : [])) ?? []) : tab === "postcard" ? view.checkResults : [];
+  const checkMarks: CheckMark[] = checkSource.flatMap((o) => {
     const d = describePostcardCheck(o.result, Date.now());
     const kind = o.result.found === true ? "found" : o.result.found === false ? "missing" : "unfinished";
     return [{ lat: o.point.lat, lng: o.point.lng, kind, tooltip: `${d.title}｜${d.message}` } as CheckMark];
   });
+
+  // 指定菇菇分頁畫該功能的 Sighting；歷史分頁畫點選那個 Batch 的 Sighting；其他分頁不畫。
+  const mapSightings = tab === "target" ? tabSightings : tab === "history" ? (historyDetail?.waypoints.flatMap((w) => w.sightings) ?? []) : [];
 
   const tabButton = (t: Tab, label: string) => (
     <button className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
@@ -119,7 +133,7 @@ export function App() {
     <div className="layout">
       <WaypointMap
         waypoints={mapWaypoints}
-        sightings={visibleSightings(allSightings, now, showAllSightings)}
+        sightings={visibleSightings(mapSightings, now, showAllSightings)}
         now={now}
         areas={areas}
         checkMarks={checkMarks}
@@ -157,15 +171,15 @@ export function App() {
             onMove={move}
           />
         )}
-        {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} onStarted={follow} />}
+        {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} onStarted={(id) => follow("quiet-search", id)} />}
         {tab === "discovery" && (
-          <DiscoveryPanel region={region} drawing={drawing} onDraw={() => setDrawing(true)} view={view} onStarted={async (batchId) => follow(batchId)} />
+          <DiscoveryPanel region={region} drawing={drawing} onDraw={() => setDrawing(true)} view={view} onStarted={async (batchId) => follow("discovery", batchId)} />
         )}
-        {tab === "postcard" && <PostcardCheckPanel list={selected} waypoints={waypoints} view={view} onStarted={follow} />}
-        {tab === "history" && <HistoryPanel refreshKey={view.status} />}
-        {tab === "target" && <TargetSearchPanel list={selected} view={view} onStarted={follow} />}
+        {tab === "postcard" && <PostcardCheckPanel list={selected} waypoints={waypoints} view={view} onStarted={(id) => follow("postcard-check", id)} />}
+        {tab === "history" && <HistoryPanel refreshKey={BATCH_FEATURES.map((f) => views[f].status).join()} onDetail={setHistoryDetail} />}
+        {tab === "target" && <TargetSearchPanel list={selected} view={view} onStarted={(id) => follow("target-search", id)} />}
       </div>
-      <BatchDrawer onFollow={follow} view={view} />
+      <BatchDrawer onFollow={(f, id) => (BATCH_FEATURES as readonly string[]).includes(f) && follow(f as BatchFeature, id)} view={drawerView} />
     </div>
   );
 }

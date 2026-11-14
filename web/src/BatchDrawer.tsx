@@ -5,7 +5,7 @@ import { api } from "./api.js";
 const label = (i: QueueItem) => `#${i.batchId} ${featureName(i.feature)}｜${i.listName}`;
 
 /** 底部抽屜：目前在跑的 Batch、排隊中的 Batch，以及取消按鈕。 */
-export function BatchDrawer({ onFollow, view }: { onFollow: (batchId: number) => void; view: BatchView }) {
+export function BatchDrawer({ onFollow, view }: { onFollow: (feature: string, batchId: number) => void; view: BatchView }) {
   const [q, setQ] = useState<QueueSnapshot>({ running: null, queued: [] });
   const log = useRef<HTMLPreElement>(null);
   useEffect(() => {
@@ -46,7 +46,7 @@ export function BatchDrawer({ onFollow, view }: { onFollow: (batchId: number) =>
       {q.running && (
         <div className="row">
           <strong>執行中</strong>
-          <a href="#" onClick={(e) => (e.preventDefault(), onFollow(q.running!.batchId))}>{label(q.running)}</a>
+          <a href="#" onClick={(e) => (e.preventDefault(), onFollow(q.running!.feature, q.running!.batchId))}>{label(q.running)}</a>
           <button onClick={() => void run(() => api.cancelBatch(q.running!.batchId, "after-waypoint"))}>跑完這點就停</button>
           <button className="danger" onClick={() => force(q.running!)}>強制停止</button>
         </div>
@@ -64,7 +64,7 @@ export function BatchDrawer({ onFollow, view }: { onFollow: (batchId: number) =>
       {q.queued.map((i, n) => (
         <div className="row" key={i.batchId}>
           <span className="muted">排隊 {n + 1}</span>
-          <a href="#" onClick={(e) => (e.preventDefault(), onFollow(i.batchId))}>{label(i)}</a>
+          <a href="#" onClick={(e) => (e.preventDefault(), onFollow(i.feature, i.batchId))}>{label(i)}</a>
           <button onClick={() => void run(() => api.cancelBatch(i.batchId, "after-waypoint"))}>移出佇列</button>
         </div>
       ))}

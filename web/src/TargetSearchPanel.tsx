@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { GIANT_TARGET, addTarget, type BatchView, type WaypointList } from "@shell/shared";
+import { GIANT_TARGET, addTarget, batchStatusText, type BatchView, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { SightingCard } from "./SightingCard.js";
 
@@ -90,17 +90,7 @@ export function TargetSearchPanel({ list, view, onStarted }: Props) {
 
       {view.status !== "idle" && (
         <>
-          <p>
-            {queued
-              ? `排隊中：前面還有 ${view.queuePosition ?? 1} 個 Batch，輪到才會開始`
-              : running
-                ? `進度：第 ${view.index} / ${view.total} 個 Waypoint${view.label ? `（${view.label}）` : ""}`
-                : view.status === "done"
-                  ? `完成：共 ${view.total} 個 Waypoint，找到 ${view.sightings.length} 筆`
-                  : view.status === "cancelled"
-                    ? `已取消：跑了 ${view.index} / ${view.total} 個 Waypoint，找到 ${view.sightings.length} 筆${view.error ? `。${view.error}` : ""}`
-                    : `失敗：${view.error}`}
-          </p>
+          <p>{batchStatusText(view, view.sightings.length)}</p>
           {view.failures.length > 0 && (
             <div className="errors">
               {view.failures.map((f) => (

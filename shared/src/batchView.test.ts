@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BatchEvent, StoredSighting } from "./types.js";
-import { initialBatchView, reduceBatchView } from "./batchView.js";
+import { batchStatusText, initialBatchView, reduceBatchView, type BatchView } from "./batchView.js";
 
 const sighting = { id: 1, target: "巨大 *" } as StoredSighting;
 const run = (events: BatchEvent[]) => events.reduce(reduceBatchView, initialBatchView);
@@ -62,5 +62,22 @@ describe("reduceBatchView", () => {
     ]);
     expect(v.failures).toEqual([{ index: 1, error: "遊戲沒有回應", screenshotUrl: "/api/runs/r/abort.png" }]);
     expect(v.status).toBe("cancelled");
+  });
+});
+
+describe("batchStatusText（三個功能分頁共用）", () => {
+  const v = (over: Partial<BatchView>): BatchView => ({ ...initialBatchView, ...over });
+  it("queued：排隊中，不是「失敗：null」", () => {
+    expect(batchStatusText(v({ status: "queued", queuePosition: 2 }))).toBe("排隊中：前面還有 2 個 Batch，輪到才會開始");
+  });
+  it("cancelled：已取消，不是「失敗：null」", () => {
+    const t = batchStatusText(v({ status: "cancelled", index: 1, total: 3 }));
+    expect(t).toContain("已取消");
+    expect(t).not.toContain("null");
+  });
+  it("running／done／failed", () => {
+    expect(batchStatusText(v({ status: "running", index: 1, total: 3, label: "甲" }))).toBe("進度：第 1 / 3 個 Waypoint（甲）");
+    expect(batchStatusText(v({ status: "done", total: 3 }))).toBe("完成：共 3 個 Waypoint");
+    expect(batchStatusText(v({ status: "failed", error: "壞了" }))).toBe("失敗：壞了");
   });
 });

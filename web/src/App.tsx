@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { describePostcardCheck, sweepAreaColor, visibleSightings, type ImportLineError, type Region, type Waypoint, type WaypointList } from "@shell/shared";
+import { describePostcardCheck, sweepAreaColor, visibleSightings, type ImportLineError, type Region, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap, type CheckMark, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
@@ -24,6 +24,11 @@ export function App() {
   const [showAllSightings, setShowAllSightings] = useState(false);
   const { view, follow } = useBatchView();
   const now = useNow();
+  const [allSightings, setAllSightings] = useState<StoredSighting[]>([]);
+  // 地圖的 Sighting 來自 SQLite 全部 Batch；跟隨中的 Batch 有新 Sighting 或結束時重抓。
+  useEffect(() => {
+    void api.sightings().then(setAllSightings).catch(() => {});
+  }, [view.sightings.length, view.status]);
 
   const refreshLists = useCallback(async () => setLists(await api.lists()), []);
   useEffect(() => void refreshLists(), [refreshLists]);
@@ -119,7 +124,7 @@ export function App() {
     <div className="layout">
       <WaypointMap
         waypoints={waypoints}
-        sightings={visibleSightings(view.sightings, now, showAllSightings)}
+        sightings={visibleSightings(allSightings, now, showAllSightings)}
         now={now}
         areas={areas}
         checkMarks={checkMarks}
@@ -127,7 +132,8 @@ export function App() {
         drawing={tab === "discovery" && drawing}
         onRegionDrawn={(r) => (setRegion(r), setDrawing(false))}
         onMapClick={selectedId === null || tab === "discovery" ? undefined : addAt}
-        onMarkerClick={edit}
+        onMarkerEdit={edit}
+        onMarkerDelete={removeWaypoint}
       />
       <div className="panel">
         <div className="tabs">
@@ -226,7 +232,7 @@ export function App() {
         )}
         </>}
       </div>
-      <BatchDrawer onFollow={follow} />
+      <BatchDrawer onFollow={follow} view={view} />
     </div>
   );
 }

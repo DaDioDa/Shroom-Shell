@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { missingSpotNames, type BatchView, type Waypoint, type WaypointList } from "@shell/shared";
+import { useEffect, useRef, useState } from "react";
+import { batchStatusText, missingSpotNames, type BatchView, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { CheckResultCard } from "./CheckResultCard.js";
 
@@ -12,6 +12,10 @@ interface Props {
 
 export function PostcardCheckPanel({ list, waypoints, view, onStarted }: Props) {
   const [startError, setStartError] = useState<string | null>(null);
+  const log = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    log.current?.scrollTo({ top: log.current.scrollHeight });
+  }, [view.stderr.length]);
   const running = view.status === "running";
   const missing = missingSpotNames(waypoints);
   const nameOf = (id: number) => {
@@ -44,13 +48,10 @@ export function PostcardCheckPanel({ list, waypoints, view, onStarted }: Props) 
       <p className="muted">地圖：綠＝找到、紅＝沒找到、灰＝沒讀完。</p>
       {view.status !== "idle" && (
         <>
-          <p>
-            {running
-              ? `進度：第 ${view.index} / ${view.total} 個 Waypoint${view.label ? `（${view.label}）` : ""}`
-              : view.status === "done"
-                ? `完成：共 ${view.total} 個 Waypoint`
-                : `失敗：${view.error}`}
-          </p>
+          <p>{batchStatusText(view)}</p>
+          <pre ref={log} className="log">
+            {view.stderr.join("\n")}
+          </pre>
           {view.checkResults.map((o) => (
             <CheckResultCard key={o.index} outcome={o} name={nameOf(o.waypointId)} />
           ))}

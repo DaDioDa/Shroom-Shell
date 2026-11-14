@@ -178,3 +178,14 @@ describe("刪除 Batch", () => {
     rmSync(abs, { recursive: true, force: true });
   });
 });
+
+describe("GET /api/sightings", () => {
+  it("回傳 SQLite 裡所有 Batch 的 Sighting，不限目前跟隨的那個", async () => {
+    const t = await setup((cmd) => (cmd === "hunt" ? hunt(giant({ spot_name: "A" })) : hunt(giant({ spot_name: "B" }))));
+    await startHunt(t.app, t.listId);
+    await startHunt(t.app, t.listId);
+    const all = (await t.app.inject("/api/sightings")).json() as { spot_name: string; batchId: number }[];
+    expect(new Set(all.map((s) => s.batchId)).size).toBe(2);
+    expect(all.length).toBe(4);
+  });
+});

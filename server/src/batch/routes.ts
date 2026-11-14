@@ -7,7 +7,7 @@ import type { Db } from "../db/database.js";
 import { BatchHub } from "./hub.js";
 import { BatchQueue } from "./queue.js";
 import { runBatch, type BatchDeps, type BatchFeature } from "./runBatch.js";
-import { createBatch, finishBatch, getBatch, listSightings, listTargets, quietAverageMs, rememberTargets } from "./store.js";
+import { createBatch, finishBatch, getBatch, listAllSightings, listSightings, listTargets, quietAverageMs, rememberTargets } from "./store.js";
 import { discoveryFeature } from "./discovery.js";
 import { postcardCheckFeature } from "./postcardCheck.js";
 import { quietSearchFeature } from "./quietSearch.js";
@@ -178,6 +178,8 @@ export function registerBatchRoutes(
   app.get<{ Params: { id: string } }>("/api/batches/:id", async (req, reply) => {
     return getBatch(db, Number(req.params.id)) ?? reply.code(404).send({ error: "找不到 Batch" });
   });
+
+  app.get("/api/sightings", async () => listAllSightings(db, deps.runsDir));
 
   app.get<{ Params: { id: string } }>("/api/batches/:id/sightings", async (req) => listSightings(db, Number(req.params.id), deps.runsDir));
 

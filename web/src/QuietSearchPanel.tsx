@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { BatchView, Waypoint, WaypointList } from "@shell/shared";
+import { batchStatusText, type BatchView, Waypoint, WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { QuietResultCard } from "./QuietResultCard.js";
 
@@ -56,13 +56,7 @@ export function QuietSearchPanel({ list, waypoints, view, onStarted }: Props) {
 
       {view.status !== "idle" && (
         <>
-          <p>
-            {running
-              ? `進度：第 ${view.index} / ${view.total} 個 Waypoint${view.label ? `（${view.label}）` : ""}`
-              : view.status === "done"
-                ? `完成：共 ${view.total} 個 Waypoint`
-                : `失敗：${view.error}`}
-          </p>
+          <p>{batchStatusText(view)}</p>
           <pre ref={log} className="log">
             {view.stderr.join("\n")}
           </pre>

@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
-import type { QueueItem, QueueSnapshot } from "@shell/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { batchStatusText, type BatchView, type QueueItem, type QueueSnapshot } from "@shell/shared";
 import { api } from "./api.js";
 
 const FEATURE_NAME: Record<string, string> = { "target-search": "Target Search", "quiet-search": "Quiet Giant Search", discovery: "Discovery", "postcard-check": "Postcard Check" };
 const label = (i: QueueItem) => `#${i.batchId} ${FEATURE_NAME[i.feature] ?? i.feature}｜${i.listName}`;
 
 /** 底部抽屜：目前在跑的 Batch、排隊中的 Batch，以及取消按鈕。 */
-export function BatchDrawer({ onFollow }: { onFollow: (batchId: number) => void }) {
+export function BatchDrawer({ onFollow, view }: { onFollow: (batchId: number) => void; view: BatchView }) {
   const [q, setQ] = useState<QueueSnapshot>({ running: null, queued: [] });
+  const log = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    log.current?.scrollTo({ top: log.current.scrollHeight });
+  }, [view.stderr.length]);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -37,7 +41,7 @@ export function BatchDrawer({ onFollow }: { onFollow: (batchId: number) => void 
     void run(() => api.cancelBatch(i.batchId, "force"));
   };
 
-  if (!q.running && q.queued.length === 0) return null;
+  if (!q.running && q.queued.length === 0 && view.status === "idle") return null;
   return (
     <div className="drawer">
       {q.running && (
@@ -47,6 +51,16 @@ export function BatchDrawer({ onFollow }: { onFollow: (batchId: number) => void 
           <button onClick={() => void run(() => api.cancelBatch(q.running!.batchId, "after-waypoint"))}>跑完這點就停</button>
           <button className="danger" onClick={() => force(q.running!)}>強制停止</button>
         </div>
+      )}
+      {view.status !== "idle" && (
+        <>
+          <div className="row">{batchStatusText(view)}</div>
+          {view.stderr.length > 0 && (
+            <pre ref={log} className="log">
+              {view.stderr.join("\n")}
+            </pre>
+          )}
+        </>
       )}
       {q.queued.map((i, n) => (
         <div className="row" key={i.batchId}>

@@ -29,3 +29,8 @@ html, body, #root { height: 100%; margin: 0; font-family: system-ui, sans-serif;
 .card.quiet.green { border-left: 6px solid #2f9e44; }
 .card.quiet.red { border-left: 6px solid #e03131; }
 .card.quiet.gray { border-left: 6px solid #868e96; }
+
+.slider { margin: 6px 0; }
+.slider .row { display: flex; gap: 8px; align-items: center; }
+.slider input[type="range"] { flex: 1; }
+.slider input[type="number"] { width: 5em; }

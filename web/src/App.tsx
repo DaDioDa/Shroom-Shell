@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { describePostcardCheck, featureName, sweepAreaColor, visibleSightings, type ListFeature, type HistoryDetail, type Region, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
+import { describePostcardCheck, featureName, SLIDER_SPECS, sweepAreaColor, sweepRadius, visibleSightings, type ListFeature, type HistoryDetail, type Region, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap, type CheckMark, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
@@ -10,6 +10,7 @@ import { PostcardCheckPanel } from "./PostcardCheckPanel.js";
 import { QuietSearchPanel } from "./QuietSearchPanel.js";
 import { TargetSearchPanel } from "./TargetSearchPanel.js";
 import { useNow } from "./useNow.js";
+import { loadJson, saveJson, useStoredSlider } from "./storage.js";
 import { BATCH_FEATURES, useBatchViews, type BatchFeature } from "./useBatchView.js";
 
 type Tab = "quiet" | "discovery" | "postcard" | "target" | "history";
@@ -18,12 +19,16 @@ const TAB_FEATURE: Partial<Record<Tab, ListFeature>> = { quiet: "quiet-search", 
 /** 各分頁對應的 Batch 功能（歷史分頁沒有）。 */
 const TAB_BATCH: Partial<Record<Tab, BatchFeature>> = { quiet: "quiet-search", discovery: "discovery", postcard: "postcard-check", target: "target-search" };
 const noLists = (): Record<ListFeature, WaypointList[]> => ({ "quiet-search": [], "postcard-check": [], "target-search": [] });
+const SELECTED_KEY = "selectedLists";
 const noSelection = (): Record<ListFeature, number | null> => ({ "quiet-search": null, "postcard-check": null, "target-search": null });
 
 export function App() {
   const [listsBy, setListsBy] = useState(noLists);
-  // 各功能分頁各自記住選的清單（先存在記憶體，重新整理不保留）。
-  const [selectedBy, setSelectedBy] = useState(noSelection);
+  // 各功能分頁各自記住選的清單，存在 localStorage；記住的清單已被刪除時，當作沒選。
+  const [selectedBy, setSelectedBy] = useState(() => ({ ...noSelection(), ...loadJson<Partial<Record<ListFeature, number | null>>>(SELECTED_KEY, {}) }));
+  useEffect(() => saveJson(SELECTED_KEY, selectedBy), [selectedBy]);
+  const [quietRadius, setQuietRadius] = useStoredSlider("slider.radius.quiet-search", SLIDER_SPECS.radius);
+  const [targetRadius, setTargetRadius] = useStoredSlider("slider.radius.target-search", SLIDER_SPECS.radius);
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [tab, setTab] = useState<Tab>("quiet");
   const [region, setRegion] = useState<Region | null>(null);
@@ -52,6 +57,7 @@ export function App() {
   const refreshLists = useCallback(async (f: ListFeature) => {
     const next = await api.lists(f);
     setListsBy((m) => ({ ...m, [f]: next }));
+    setSelectedBy((m) => (m[f] != null && !next.some((l) => l.id === m[f]) ? { ...m, [f]: null } : m));
   }, []);
   useEffect(() => {
     for (const f of Object.values(TAB_FEATURE)) void refreshLists(f);
@@ -133,6 +139,11 @@ export function App() {
     return [{ lat: o.point.lat, lng: o.point.lng, radius: o.radius, color: sweepAreaColor(o.result.verdict), tooltip: o.result.reason }];
   });
 
+  // 拉半徑時的預覽：選定清單的每個 Waypoint 周圍畫 2R 正方形，Waypoint 自帶半徑時用自己的。
+  const previewRadius = tab === "quiet" ? quietRadius : tab === "target" ? targetRadius : null;
+  const showPreview = previewRadius !== null && !(tab === "quiet" && view.quietResults.length > 0);
+  const previewAreas: SweepArea[] = showPreview ? waypoints.map((w) => ({ lat: w.lat, lng: w.lng, radius: sweepRadius(w, previewRadius), color: "preview" as const })) : [];
+
   const checkSource = tab === "history" ? (historyDetail?.waypoints.flatMap((w) => (w.check ? [w.check] : [])) ?? []) : tab === "postcard" ? view.checkResults : [];
   const checkMarks: CheckMark[] = checkSource.flatMap((o) => {
     const d = describePostcardCheck(o.result, Date.now());
@@ -155,7 +166,7 @@ export function App() {
         waypoints={mapWaypoints}
         sightings={visibleSightings(mapSightings, now, showAllSightings)}
         now={now}
-        areas={areas}
+        areas={[...areas, ...previewAreas]}
         checkMarks={checkMarks}
         region={tab === "discovery" ? region : null}
         drawing={tab === "discovery" && drawing}
@@ -191,13 +202,13 @@ export function App() {
             onMove={move}
           />
         )}
-        {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} onStarted={(id) => follow("quiet-search", id)} />}
+        {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} radius={quietRadius} onRadiusChange={setQuietRadius} onStarted={(id) => follow("quiet-search", id)} />}
         {tab === "discovery" && (
           <DiscoveryPanel region={region} drawing={drawing} onDraw={() => setDrawing(true)} view={view} onStarted={async (batchId) => follow("discovery", batchId)} />
         )}
         {tab === "postcard" && <PostcardCheckPanel list={selected} waypoints={waypoints} view={view} onStarted={(id) => follow("postcard-check", id)} />}
         {tab === "history" && <HistoryPanel refreshKey={BATCH_FEATURES.map((f) => views[f].status).join()} onDetail={setHistoryDetail} />}
-        {tab === "target" && <TargetSearchPanel list={selected} view={view} onStarted={(id) => follow("target-search", id)} />}
+        {tab === "target" && <TargetSearchPanel list={selected} view={view} radius={targetRadius} onRadiusChange={setTargetRadius} onStarted={(id) => follow("target-search", id)} />}
       </div>
       <BatchDrawer onFollow={(f, id) => (BATCH_FEATURES as readonly string[]).includes(f) && follow(f as BatchFeature, id)} view={drawerView} />
     </div>

@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { batchStatusText, featureName, type BatchView, Waypoint, WaypointList } from "@shell/shared";
+import { SLIDER_SPECS, batchStatusText, featureName, type BatchView, Waypoint, WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { QuietResultCard } from "./QuietResultCard.js";
+import { Slider } from "./Slider.js";
 
 interface Props {
   list: WaypointList | null;
   waypoints: Waypoint[];
   view: BatchView;
+  radius: number;
+  onRadiusChange: (r: number) => void;
   onStarted: (batchId: number) => void;
 }
 
-export function QuietSearchPanel({ list, waypoints, view, onStarted }: Props) {
-  const [radius, setRadius] = useState(500);
+export function QuietSearchPanel({ list, waypoints, view, radius, onRadiusChange, onStarted }: Props) {
   const [startError, setStartError] = useState<string | null>(null);
   const log = useRef<HTMLPreElement>(null);
   useEffect(() => {
@@ -39,17 +41,12 @@ export function QuietSearchPanel({ list, waypoints, view, onStarted }: Props) {
         每個 Waypoint 跑 <code>quiet --radius R</code>。R 用 Waypoint 自己的半徑，沒有就用下面的預設半徑。
         Waypoint 半徑可在匯入時寫 <code>lat,lng r=300 標籤</code>，或點地圖標記編輯。
       </p>
-      <div>
-        <label>
-          預設半徑（公尺）
-          <input type="number" min={1} value={radius} onChange={(e) => setRadius(Number(e.target.value))} />
-        </label>
-      </div>
-      <button disabled={!list || running || !(radius > 0)} onClick={start}>
+      <Slider label="預設半徑" spec={SLIDER_SPECS.radius} value={radius} unit="m" disabled={running} onChange={onRadiusChange} />
+      <button disabled={!list || running} onClick={start}>
         開始
       </button>
       {startError && <p className="errors">{startError}</p>}
-      <p className="muted">地圖：綠＝是、紅＝不是、灰＝無法判斷（正方形邊長 2R）。</p>
+      <p className="muted">拉半徑時，地圖會在每個 Waypoint 周圍畫出 2R 的藍色預覽正方形。地圖：綠＝是、紅＝不是、灰＝無法判斷（正方形邊長 2R）。</p>
 
       {view.status !== "idle" && (
         <>

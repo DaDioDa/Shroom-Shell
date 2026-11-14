@@ -15,11 +15,11 @@ export interface SweepArea {
   lat: number;
   lng: number;
   radius: number;
-  color: SweepAreaColor;
+  color: SweepAreaColor | "preview";
   tooltip?: string;
 }
 
-const AREA_COLORS: Record<SweepAreaColor, string> = { green: "#2f9e44", red: "#e03131", gray: "#868e96" };
+const AREA_COLORS: Record<SweepAreaColor | "preview", string> = { green: "#2f9e44", red: "#e03131", gray: "#868e96", preview: "#1971c2" };
 
 export function WaypointMap({
   waypoints,

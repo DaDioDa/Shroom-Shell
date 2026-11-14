@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { GIANT_TARGET, addTarget, batchStatusText, type BatchView, type WaypointList } from "@shell/shared";
+import { GIANT_TARGET, addTarget, batchStatusText, featureName, type BatchView, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { SightingCard } from "./SightingCard.js";
 

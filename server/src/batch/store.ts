@@ -103,11 +103,11 @@ export function listTargets(db: Db): string[] {
 
 export function saveWaypointRun(
   db: Db,
-  run: { batchId: number; waypointId: number; index: number; exitCode: number | null; result: unknown; runDir: string | null; error: string | null },
+  run: { batchId: number; waypointId: number; index: number; exitCode: number | null; result: unknown; runDir: string | null; error: string | null; durationMs?: number | null },
 ): void {
   db.prepare(
-    "INSERT INTO waypoint_runs (batch_id, waypoint_id, idx, exit_code, result_json, run_dir, error) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  ).run(run.batchId, run.waypointId, run.index, run.exitCode, JSON.stringify(run.result), run.runDir, run.error);
+    "INSERT INTO waypoint_runs (batch_id, waypoint_id, idx, exit_code, result_json, run_dir, error, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  ).run(run.batchId, run.waypointId, run.index, run.exitCode, JSON.stringify(run.result), run.runDir, run.error, run.durationMs ?? null);
 }
 
 export function setBatchStatus(db: Db, batchId: number, status: BatchStatus): void {
@@ -151,4 +151,15 @@ export function getBatch(db: Db, id: number): BatchRecord | null {
     finishedAt: b.finished_at,
     runs: runs.map((r) => ({ index: r.idx, waypointId: r.waypoint_id, exitCode: r.exit_code, runDir: r.run_dir, error: r.error })),
   };
+}
+
+/** 過去 quiet（Quiet Giant Search 與 Discovery）每點的平均耗時；沒有紀錄就是 null。被強制停止的點不算。 */
+export function quietAverageMs(db: Db): number | null {
+  const r = db
+    .prepare(
+      `SELECT AVG(r.duration_ms) AS avg FROM waypoint_runs r JOIN batches b ON b.id = r.batch_id
+       WHERE b.feature IN ('quiet-search', 'discovery') AND r.duration_ms IS NOT NULL AND r.exit_code IS NOT NULL`,
+    )
+    .get() as { avg: number | null };
+  return r.avg === null ? null : Math.round(r.avg);
 }

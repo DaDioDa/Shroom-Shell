@@ -81,6 +81,8 @@ export function openDb(dataDir: string): Db {
   ensureColumn(db, "waypoints", "spot_name", "TEXT");
   // 圖片已清除（run 資料夾因超過上限被刪）：0／1。
   ensureColumn(db, "batches", "images_cleared", "INTEGER NOT NULL DEFAULT 0");
+  // 每點實測耗時（毫秒，含 Teleport 與等待），Discovery 用它估時間。
+  ensureColumn(db, "waypoint_runs", "duration_ms", "INTEGER");
   return db;
 }
 

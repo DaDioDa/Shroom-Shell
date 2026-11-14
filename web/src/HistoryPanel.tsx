@@ -4,7 +4,7 @@ import { api } from "./api.js";
 import { QuietResultCard } from "./QuietResultCard.js";
 import { SightingCard } from "./SightingCard.js";
 
-const FEATURE: Record<string, string> = { "target-search": "Target Search", "quiet-search": "Quiet Giant Search" };
+const FEATURE: Record<string, string> = { "target-search": "Target Search", "quiet-search": "Quiet Giant Search", discovery: "Discovery" };
 const STATUS: Record<string, string> = { running: "執行中", queued: "排隊中", done: "完成", failed: "失敗", cancelled: "已取消" };
 const busy = (r: { status: string }) => r.status === "running" || r.status === "queued";
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");

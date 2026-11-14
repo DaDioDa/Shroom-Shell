@@ -1,6 +1,6 @@
 import L from "leaflet";
 import { useEffect, useRef } from "react";
-import { isSightingExpired, sweepAreaSquare, type StoredSighting, type SweepAreaColor, type Waypoint } from "@shell/shared";
+import { isSightingExpired, sweepAreaSquare, type Region, type StoredSighting, type SweepAreaColor, type Waypoint } from "@shell/shared";
 
 /** 地圖上的 Sweep Area：以 (lat,lng) 為中心、邊長 2R 公尺的正方形。 */
 export interface SweepArea {
@@ -19,6 +19,9 @@ export function WaypointMap({
   onMarkerClick,
   sightings = [],
   areas = [],
+  region = null,
+  drawing = false,
+  onRegionDrawn,
   now = Date.now(),
 }: {
   waypoints: Waypoint[];
@@ -26,9 +29,17 @@ export function WaypointMap({
   onMarkerClick?: (w: Waypoint) => void;
   sightings?: StoredSighting[];
   areas?: SweepArea[];
+  /** Discovery 的 Region 外框。 */
+  region?: Region | null;
+  /** true＝拖曳畫矩形（此時不能拖地圖）。 */
+  drawing?: boolean;
+  onRegionDrawn?: (r: Region) => void;
   /** 判斷 Sighting 是否過期用的現在時間。 */
   now?: number;
 }) {
+  const drawnRef = useRef(onRegionDrawn);
+  drawnRef.current = onRegionDrawn;
+  const regionLayer = useRef<L.LayerGroup | null>(null);
   const clickRef = useRef({ onMapClick, onMarkerClick });
   clickRef.current = { onMapClick, onMarkerClick };
   const el = useRef<HTMLDivElement>(null);
@@ -45,6 +56,7 @@ export function WaypointMap({
     }).addTo(m);
     m.on("click", (e: L.LeafletMouseEvent) => clickRef.current.onMapClick?.(e.latlng.lat, e.latlng.lng));
     areaLayer.current = L.layerGroup().addTo(m);
+    regionLayer.current = L.layerGroup().addTo(m);
     layer.current = L.layerGroup().addTo(m);
     sightingLayer.current = L.layerGroup().addTo(m);
     map.current = m;
@@ -89,6 +101,46 @@ export function WaypointMap({
       if (a.tooltip) rect.bindTooltip(a.tooltip);
     }
   }, [areas]);
+
+  useEffect(() => {
+    const g = regionLayer.current!;
+    g.clearLayers();
+    if (region) L.rectangle([[region.south, region.west], [region.north, region.east]], { color: "#1971c2", weight: 2, fillOpacity: 0.08, dashArray: "6 4" }).addTo(g);
+  }, [region]);
+
+  // 畫矩形：按下、拖曳、放開。
+  useEffect(() => {
+    const m = map.current!;
+    if (!drawing) return;
+    m.dragging.disable();
+    m.getContainer().style.cursor = "crosshair";
+    let start: L.LatLng | null = null;
+    let box: L.Rectangle | null = null;
+    const down = (e: L.LeafletMouseEvent) => {
+      start = e.latlng;
+      box = L.rectangle(L.latLngBounds(start, start), { color: "#1971c2", weight: 2 }).addTo(regionLayer.current!);
+    };
+    const move = (e: L.LeafletMouseEvent) => {
+      if (start && box) box.setBounds(L.latLngBounds(start, e.latlng));
+    };
+    const up = (e: L.LeafletMouseEvent) => {
+      if (!start) return;
+      const b = L.latLngBounds(start, e.latlng);
+      start = null;
+      box?.remove();
+      box = null;
+      if (b.getNorth() !== b.getSouth() && b.getEast() !== b.getWest()) {
+        drawnRef.current?.({ south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() });
+      }
+    };
+    m.on("mousedown", down).on("mousemove", move).on("mouseup", up);
+    return () => {
+      m.off("mousedown", down).off("mousemove", move).off("mouseup", up);
+      m.dragging.enable();
+      m.getContainer().style.cursor = "";
+      box?.remove();
+    };
+  }, [drawing]);
 
   return <div ref={el} className="map" />;
 }

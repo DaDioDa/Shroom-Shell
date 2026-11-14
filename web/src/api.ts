@@ -1,4 +1,4 @@
-import type { CancelMode, HistoryDetail, HistoryRow, ImportResult, QueueSnapshot, QuietSearchParams, Settings, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
+import type { CancelMode, HistoryDetail, HistoryRow, ImportResult, QueueSnapshot, QuietSearchParams, Region, Settings, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -6,7 +6,10 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
     headers: body === undefined ? undefined : { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${method} ${url} → ${res.status}`);
+  if (!res.ok) {
+    const msg = ((await res.json().catch(() => null)) as { error?: string } | null)?.error;
+    throw new Error(msg ?? `${method} ${url} → ${res.status}`);
+  }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
@@ -23,6 +26,9 @@ export const api = {
   startQuietSearch: (p: QuietSearchParams) => call<{ batchId: number }>("POST", "/api/batches/quiet-search", p),
   settings: () => call<Settings>("GET", "/api/settings"),
   saveSettings: (s: Settings) => call<Settings>("PUT", "/api/settings", s),
+  quietStats: () => call<{ avgMsPerPoint: number | null }>("GET", "/api/quiet-stats"),
+  startDiscovery: (p: { name: string; region: Region; radius: number; spacing: number; confirmed?: boolean }) =>
+    call<{ batchId: number; listId: number }>("POST", "/api/batches/discovery", p),
   history: () => call<HistoryRow[]>("GET", "/api/history"),
   historyDetail: (id: number) => call<HistoryDetail>("GET", `/api/history/${id}`),
   deleteBatch: (id: number) => call<void>("DELETE", `/api/batches/${id}`),

@@ -7,6 +7,8 @@ import { listSightings } from "./store.js";
 export { safeRunPath };
 
 /** 這些狀態的 Batch 還在動（或馬上要動），不能刪。 */
+const isQuiet = (feature: string) => feature === "quiet-search" || feature === "discovery";
+
 export const BUSY_STATUSES = ["running", "queued"];
 
 interface BatchRow {
@@ -59,7 +61,7 @@ function loadRuns(db: Db, batchId: number): RunRow[] {
 function summarize(db: Db, b: BatchRow): string {
   const runs = loadRuns(db, b.id);
   const total = (db.prepare("SELECT COUNT(*) AS n FROM waypoint_runs WHERE batch_id = ?").get(b.id) as { n: number }).n;
-  if (b.feature === "quiet-search") {
+  if (isQuiet(b.feature)) {
     const counts = { yes: 0, no: 0, unknown: 0 };
     for (const r of runs) {
       const v = parseJson<QuietResult>(r.result_json)?.verdict;
@@ -97,7 +99,7 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
   const sightings = listSightings(db, id, runsDir);
   const waypoints = loadRuns(db, id).map((r): HistoryWaypoint => {
     // result_json 是 QuietResult 加上這點用的半徑；舊資料沒有半徑就退回 Waypoint 目前的半徑或 Batch 預設。
-    const stored = b.feature === "quiet-search" ? parseJson<QuietResult & { radius?: number }>(r.result_json) : null;
+    const stored = isQuiet(b.feature) ? parseJson<QuietResult & { radius?: number }>(r.result_json) : null;
     const { radius: storedRadius, ...result } = stored ?? ({} as QuietResult & { radius?: number });
     const radius = storedRadius ?? sweepRadius({ radius: r.wp_radius }, params?.radius ?? 0);
     return {

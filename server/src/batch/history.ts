@@ -4,6 +4,7 @@ import type { Db } from "../db/database.js";
 import { safeRunPath } from "./runPath.js";
 import { listSightings } from "./store.js";
 import { toOutcome } from "./postcardCheck.js";
+import { abortShotUrl } from "./runBatch.js";
 
 export { safeRunPath };
 
@@ -112,6 +113,7 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
     const { radius: storedRadius, ...result } = stored ?? ({} as QuietResult & { radius?: number });
     const radius = storedRadius ?? sweepRadius({ radius: r.wp_radius }, params?.radius ?? 0);
     const checkResult = b.feature === "postcard-check" ? parseJson<CheckResult>(r.result_json) : null;
+    const abortUrl = abortShotUrl(runsDir, r.run_dir);
     return {
       index: r.idx,
       waypointId: r.waypoint_id,
@@ -119,8 +121,9 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
       exitCode: r.exit_code,
       error: r.error,
       runDir: r.run_dir,
+      abortUrl,
       sightings: sightings.filter((s) => s.waypointId === r.waypoint_id),
-      check: b.feature === "postcard-check" && checkResult ? toOutcome(runsDir, r.run_dir, r.idx, r.waypoint_id, checkResult) : null,
+      check: b.feature === "postcard-check" && checkResult ? toOutcome(runsDir, r.run_dir, r.idx, r.waypoint_id, checkResult, abortUrl) : null,
       quiet: stored ? { radius, result: result as QuietResult } : null,
     };
   });

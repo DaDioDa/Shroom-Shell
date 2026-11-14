@@ -14,7 +14,7 @@ export function checkImageUrl(runsDir: string, runName: string | null, absPath: 
   return `/api/runs/${runName}/${basename(full)}`;
 }
 
-export function toOutcome(runsDir: string, runName: string | null, index: number, waypointId: number, result: CheckResult): CheckOutcome {
+export function toOutcome(runsDir: string, runName: string | null, index: number, waypointId: number, result: CheckResult, abortUrl: string | null = null): CheckOutcome {
   const found = result.found === true ? result : null;
   return {
     index,
@@ -22,6 +22,7 @@ export function toOutcome(runsDir: string, runName: string | null, index: number
     result,
     frameUrl: checkImageUrl(runsDir, runName, found?.frame ?? null),
     postcardUrl: checkImageUrl(runsDir, runName, found?.postcard ?? null),
+    abortUrl,
   };
 }
 
@@ -46,9 +47,9 @@ export function postcardCheckFeature(): BatchFeature {
   return {
     plan: (w) => ({ command: "check", args: ["--spot-name", w.spotName ?? ""] }),
     okExitCodes: [0, 1, 2],
-    interpret({ deps, batchId, waypoint, index, result: run, stderr, runName }) {
+    interpret({ deps, batchId, waypoint, index, result: run, stderr, runName, abortShotUrl }) {
       const result = interpretCheckRun({ exitCode: run.exitCode, stdout: run.stdout, stderr, runDir: run.runDir }, waypoint.spotName ?? "");
-      deps.hub.emit(batchId, { type: "check-result", outcome: toOutcome(deps.runsDir, runName, index, waypoint.id, result) });
+      deps.hub.emit(batchId, { type: "check-result", outcome: toOutcome(deps.runsDir, runName, index, waypoint.id, result, abortShotUrl) });
       return { result, error: result.found === null ? result.reason : null, report: false };
     },
   };

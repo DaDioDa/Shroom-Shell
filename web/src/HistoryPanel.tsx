@@ -64,7 +64,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
           ) : w.quiet ? (
             <QuietResultCard
               key={w.index}
-              outcome={{ index: w.index, waypointId: w.waypointId, radius: w.quiet.radius, result: w.quiet.result }}
+              outcome={{ index: w.index, waypointId: w.waypointId, radius: w.quiet.radius, result: w.quiet.result, ...(w.abortUrl ? { screenshotUrl: w.abortUrl } : {}) }}
               name={w.label}
               giants={w.sightings}
             />
@@ -74,6 +74,11 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
                 第 {w.index} 個｜{w.label}
               </strong>
               {w.error ? <div className="errors">失敗：{w.error}</div> : <div>找到 {w.sightings.length} 筆</div>}
+              {w.abortUrl && (
+                <a href={w.abortUrl} target="_blank" rel="noreferrer">
+                  <img src={w.abortUrl} alt="abort.png" style={{ maxWidth: 140, maxHeight: 140 }} />
+                </a>
+              )}
               {w.sightings.map((s) => (
                 <SightingCard key={s.id} s={s} />
               ))}

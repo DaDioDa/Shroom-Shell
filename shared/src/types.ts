@@ -95,7 +95,7 @@ export type BatchEvent =
   | { type: "sighting"; sighting: StoredSighting }
   | { type: "waypoint-failed"; index: number; error: string; screenshotUrl?: string }
   /** Quiet Giant Search：一個 Waypoint 的答案。radius 是這點實際用的半徑（公尺）。 */
-  | { type: "quiet-result"; index: number; waypointId: number; radius: number; result: QuietResult }
+  | { type: "quiet-result"; index: number; waypointId: number; radius: number; result: QuietResult; screenshotUrl?: string }
   /** Postcard Check：一個 Waypoint 的答案。 */
   | { type: "check-result"; outcome: CheckOutcome }
   | { type: "finished"; status: BatchStatus; error?: string };
@@ -150,6 +150,8 @@ export interface HistoryWaypoint {
   exitCode: number | null;
   error: string | null;
   runDir: string | null;
+  /** 這點中止時的 abort.png 網址（run 資料夾還在、有這個檔才有）。 */
+  abortUrl: string | null;
   sightings: StoredSighting[];
   quiet: { radius: number; result: QuietResult } | null;
   /** 只有 Postcard Check 的 Batch 才有。 */

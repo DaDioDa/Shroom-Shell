@@ -7,6 +7,8 @@ export interface QuietOutcome {
   waypointId: number;
   radius: number;
   result: QuietResult;
+  /** 這點中止時的 abort.png 網址。 */
+  screenshotUrl?: string;
 }
 
 export interface BatchView {
@@ -59,7 +61,7 @@ export function reduceBatchView(v: BatchView, e: BatchEvent): BatchView {
         failures: [...v.failures, { index: e.index, error: e.error, ...(e.screenshotUrl ? { screenshotUrl: e.screenshotUrl } : {}) }],
       };
     case "quiet-result":
-      return { ...v, quietResults: [...v.quietResults, { index: e.index, waypointId: e.waypointId, radius: e.radius, result: e.result }] };
+      return { ...v, quietResults: [...v.quietResults, { index: e.index, waypointId: e.waypointId, radius: e.radius, result: e.result, ...(e.screenshotUrl ? { screenshotUrl: e.screenshotUrl } : {}) }] };
     case "check-result":
       return { ...v, checkResults: [...v.checkResults, e.outcome] };
     case "finished":

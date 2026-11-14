@@ -24,6 +24,11 @@ export function CheckResultCard({ outcome, name }: { outcome: CheckOutcome; name
         </a>
       )}
       <div className="shots">
+        {outcome.abortUrl && (
+          <a href={outcome.abortUrl} target="_blank" rel="noreferrer">
+            <img src={outcome.abortUrl} alt="abort.png" />
+          </a>
+        )}
         {outcome.frameUrl && (
           <a href={outcome.frameUrl} target="_blank" rel="noreferrer">
             <img src={outcome.frameUrl} alt="起點畫面" />

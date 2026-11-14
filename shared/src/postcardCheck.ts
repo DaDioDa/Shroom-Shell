@@ -33,6 +33,8 @@ export interface CheckOutcome {
   result: CheckResult;
   frameUrl: string | null;
   postcardUrl: string | null;
+  /** 單點中止時 run 資料夾裡的 abort.png 網址（沒有就是 null）。 */
+  abortUrl: string | null;
 }
 
 export interface PostcardCheckParams {

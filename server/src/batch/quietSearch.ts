@@ -34,14 +34,14 @@ export function quietSearchFeature(params: QuietSearchParams): BatchFeature {
   return {
     plan: (w) => ({ command: "quiet", args: quietArgs(params, w) }),
     okExitCodes: [0, 1, 2],
-    interpret({ deps, batchId, waypoint, index, result: run, stderr, runName }) {
+    interpret({ deps, batchId, waypoint, index, result: run, stderr, runName, abortShotUrl }) {
       const result = interpretQuietRun({ exitCode: run.exitCode, stdout: run.stdout, stderr, runDir: run.runDir });
       const giants: BotSighting[] = result.verdict === null ? [] : result.giants;
       for (const g of giants) {
         const saved = saveSighting(deps.db, batchId, waypoint.id, g, runName, deps.runsDir);
         deps.hub.emit(batchId, { type: "sighting", sighting: saved });
       }
-      deps.hub.emit(batchId, { type: "quiet-result", index, waypointId: waypoint.id, radius: sweepRadius(waypoint, params.radius), result });
+      deps.hub.emit(batchId, { type: "quiet-result", index, waypointId: waypoint.id, radius: sweepRadius(waypoint, params.radius), result, ...(abortShotUrl ? { screenshotUrl: abortShotUrl } : {}) });
       // 這點實際用的半徑一起存進 result_json，歷史頁才還原得出來（Waypoint 半徑之後可能被改）。
       return { result: { ...result, radius: sweepRadius(waypoint, params.radius) }, error: result.verdict === null ? result.reason : null, report: false };
     },

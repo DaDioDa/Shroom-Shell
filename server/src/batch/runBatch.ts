@@ -39,6 +39,8 @@ export interface BatchFeature {
     /** bot 這次印的 stderr 每一行。 */
     stderr: string[];
     runName: string | null;
+    /** run 資料夾裡的 abort.png 網址（沒有就是 null）。 */
+    abortShotUrl: string | null;
   }): {
     result: unknown;
     /** 這個 Waypoint 的錯誤（存進紀錄）。 */
@@ -46,6 +48,11 @@ export interface BatchFeature {
     /** false = 錯誤只記在紀錄，不發 waypoint-failed（feature 自己用別的事件呈現）。預設 true。 */
     report?: boolean;
   };
+}
+
+/** run 資料夾裡有 abort.png 才給網址。所有功能共用，Quiet／Postcard／歷史頁都靠它。 */
+export function abortShotUrl(runsDir: string, runName: string | null): string | null {
+  return runName && existsSync(join(runsDir, runName, "abort.png")) ? `/api/runs/${runName}/abort.png` : null;
 }
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -121,14 +128,14 @@ export async function runBatch(
         },
       });
       const runName = result.runDir ? basename(result.runDir) : null;
+      const shot = abortShotUrl(deps.runsDir, runName);
       let outcome: ReturnType<BatchFeature["interpret"]>;
       if (result.killed) {
         outcome = { result: [], error: FORCE_NOTE };
       } else {
-        outcome = feature.interpret({ deps, batchId, waypoint: w, index, result, stderr, runName });
+        outcome = feature.interpret({ deps, batchId, waypoint: w, index, result, stderr, runName, abortShotUrl: shot });
         if (!(feature.okExitCodes ?? [0]).includes(result.exitCode) && !outcome.error) outcome.error = failureReason(stderr, result.runDir);
         if (outcome.error && outcome.report !== false) {
-          const shot = runName && result.runDir && existsSync(join(result.runDir, "abort.png")) ? `/api/runs/${runName}/abort.png` : undefined;
           deps.hub.emit(batchId, { type: "waypoint-failed", index, error: outcome.error, ...(shot ? { screenshotUrl: shot } : {}) });
         }
       }

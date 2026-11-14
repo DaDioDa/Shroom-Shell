@@ -20,6 +20,11 @@ export function QuietResultCard({ outcome, name, giants }: { outcome: QuietOutco
           {result.claimed.participant_count === null ? "人數讀不到" : `${result.claimed.participant_count} 人`}
         </div>
       )}
+      {outcome.screenshotUrl && (
+        <a href={outcome.screenshotUrl} target="_blank" rel="noreferrer">
+          <img src={outcome.screenshotUrl} alt="abort.png" style={{ maxWidth: 140, maxHeight: 140 }} />
+        </a>
+      )}
       {result.unread > 0 && <div className="muted">另有 {result.unread} 顆沒讀到名稱</div>}
       {giants.map((s) => (
         <SightingCard key={s.id} s={s} />

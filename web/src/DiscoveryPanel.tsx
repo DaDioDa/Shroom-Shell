@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { planDiscovery, regionSizeKm, type BatchView, type Region } from "@shell/shared";
+import { featureName, planDiscovery, regionSizeKm, type BatchView, type Region } from "@shell/shared";
 import { api } from "./api.js";
 
 interface Props {
@@ -46,7 +46,7 @@ export function DiscoveryPanel({ region, drawing, onDraw, view, onStarted }: Pro
 
   return (
     <div>
-      <h4>Discovery</h4>
+      <h4>{featureName("discovery")}</h4>
       <p className="muted">在地圖上框一個 Region（最大 10 km × 10 km），依間距鋪成格子，每格跑一次 Quiet Giant Search。</p>
       <button onClick={onDraw} disabled={drawing || running}>
         {drawing ? "在地圖上拖曳畫出矩形…" : region ? "重畫 Region" : "畫 Region"}

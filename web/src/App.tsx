@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { describePostcardCheck, sweepAreaColor, visibleSightings, type ImportLineError, type Region, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
+import { describePostcardCheck, featureName, sweepAreaColor, visibleSightings, type ImportLineError, type Region, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap, type CheckMark, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
@@ -138,19 +138,19 @@ export function App() {
       <div className="panel">
         <div className="tabs">
           <button className={tab === "lists" ? "active" : ""} onClick={() => setTab("lists")}>
-            Waypoint List
+            {featureName("waypoint-list")}
           </button>
           <button className={tab === "quiet" ? "active" : ""} onClick={() => setTab("quiet")}>
-            Quiet Giant Search
+            {featureName("quiet-search")}
           </button>
           <button className={tab === "discovery" ? "active" : ""} onClick={() => setTab("discovery")}>
-            Discovery
+            {featureName("discovery")}
           </button>
           <button className={tab === "postcard" ? "active" : ""} onClick={() => setTab("postcard")}>
-            Postcard Check
+            {featureName("postcard-check")}
           </button>
           <button className={tab === "target" ? "active" : ""} onClick={() => setTab("target")}>
-            Target Search
+            {featureName("target-search")}
           </button>
           <button className={tab === "history" ? "active" : ""} onClick={() => setTab("history")}>
             歷史
@@ -178,7 +178,7 @@ export function App() {
         {tab === "history" && <HistoryPanel refreshKey={view.status} />}
         {tab === "target" && <TargetSearchPanel list={selected} view={view} onStarted={follow} />}
         {tab === "lists" && <>
-        <h3>Waypoint List</h3>
+        <h3>{featureName("waypoint-list")}</h3>
         <input value={newName} placeholder="新清單名稱" onChange={(e) => setNewName(e.target.value)} />
         <button onClick={create}>建立</button>
         <ul>

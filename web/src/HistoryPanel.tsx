@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import type { HistoryDetail, HistoryRow } from "@shell/shared";
+import { featureName, type HistoryDetail, type HistoryRow } from "@shell/shared";
 import { api } from "./api.js";
 import { CheckResultCard } from "./CheckResultCard.js";
 import { QuietResultCard } from "./QuietResultCard.js";
 import { SightingCard } from "./SightingCard.js";
 
-const FEATURE: Record<string, string> = { "target-search": "Target Search", "quiet-search": "Quiet Giant Search", discovery: "Discovery", "postcard-check": "Postcard Check" };
 const STATUS: Record<string, string> = { running: "執行中", queued: "排隊中", done: "完成", failed: "失敗", cancelled: "已取消" };
 const busy = (r: { status: string }) => r.status === "running" || r.status === "queued";
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");
@@ -34,7 +33,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
 
   const open = async (id: number) => setDetail(await api.historyDetail(id));
   const remove = async (r: HistoryRow) => {
-    if (!window.confirm(`刪除 Batch #${r.id}（${FEATURE[r.feature] ?? r.feature}）？\n會一併刪掉資料庫紀錄與 run 資料夾（截圖），無法復原。`)) return;
+    if (!window.confirm(`刪除 Batch #${r.id}（${featureName(r.feature)}）？\n會一併刪掉資料庫紀錄與 run 資料夾（截圖），無法復原。`)) return;
     setMessage(null);
     try {
       await api.deleteBatch(r.id);
@@ -50,7 +49,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
       <div>
         <button onClick={() => setDetail(null)}>← 回列表</button>
         <h4>
-          Batch #{detail.id}｜{FEATURE[detail.feature] ?? detail.feature}
+          Batch #{detail.id}｜{featureName(detail.feature)}
         </h4>
         <p className="muted">
           {detail.listName ?? "（清單已刪除）"}{detail.listId === null && detail.listName ? "（清單已刪除）" : ""}｜{STATUS[detail.status] ?? detail.status}｜{fmt(detail.createdAt)} → {fmt(detail.finishedAt)}
@@ -102,7 +101,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
       {rows.map((r) => (
         <div key={r.id} className="card">
           <strong>
-            #{r.id}｜{FEATURE[r.feature] ?? r.feature}
+            #{r.id}｜{featureName(r.feature)}
           </strong>
           ：{STATUS[r.status] ?? r.status}
           <div className="muted">

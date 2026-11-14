@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { batchStatusText, missingSpotNames, type BatchView, type Waypoint, type WaypointList } from "@shell/shared";
+import { batchStatusText, featureName, missingSpotNames, type BatchView, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { CheckResultCard } from "./CheckResultCard.js";
 
@@ -33,8 +33,8 @@ export function PostcardCheckPanel({ list, waypoints, view, onStarted }: Props) 
   };
   return (
     <div>
-      <h4>Postcard Check</h4>
-      <p>Waypoint List：{list ? `${list.name}（${list.waypointCount}）` : "請先在「Waypoint List」分頁選一份"}</p>
+      <h4>{featureName("postcard-check")}</h4>
+      <p>{featureName("waypoint-list")}：{list ? `${list.name}（${list.waypointCount}）` : `請先在「${featureName("waypoint-list")}」分頁選一份`}</p>
       <p className="muted">
         每個 Waypoint 先 Teleport，再跑 <code>check --spot-name "Spot Name"</code>。Spot Name 可在匯入時寫{" "}
         <code>lat,lng r=300 標籤 @Spot Name</code>，或點地圖標記編輯。

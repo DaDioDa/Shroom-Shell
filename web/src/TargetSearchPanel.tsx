@@ -46,8 +46,8 @@ export function TargetSearchPanel({ list, view, onStarted }: Props) {
 
   return (
     <div>
-      <h4>Target Search</h4>
-      <p>Waypoint List：{list ? `${list.name}（${list.waypointCount}）` : "請先在「Waypoint List」分頁選一份"}</p>
+      <h4>{featureName("target-search")}</h4>
+      <p>{featureName("waypoint-list")}：{list ? `${list.name}（${list.waypointCount}）` : `請先在「${featureName("waypoint-list")}」分頁選一份`}</p>
 
       <div>
         Target：

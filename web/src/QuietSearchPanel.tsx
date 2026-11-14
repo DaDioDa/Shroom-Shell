@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { batchStatusText, type BatchView, Waypoint, WaypointList } from "@shell/shared";
+import { batchStatusText, featureName, type BatchView, Waypoint, WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { QuietResultCard } from "./QuietResultCard.js";
 
@@ -36,8 +36,8 @@ export function QuietSearchPanel({ list, waypoints, view, onStarted }: Props) {
 
   return (
     <div>
-      <h4>Quiet Giant Search</h4>
-      <p>Waypoint List：{list ? `${list.name}（${list.waypointCount}）` : "請先在「Waypoint List」分頁選一份"}</p>
+      <h4>{featureName("quiet-search")}</h4>
+      <p>{featureName("waypoint-list")}：{list ? `${list.name}（${list.waypointCount}）` : `請先在「${featureName("waypoint-list")}」分頁選一份`}</p>
       <p className="muted">
         每個 Waypoint 跑 <code>quiet --radius R</code>。R 用 Waypoint 自己的半徑，沒有就用下面的預設半徑。
         Waypoint 半徑可在匯入時寫 <code>lat,lng r=300 標籤</code>，或點地圖標記編輯。

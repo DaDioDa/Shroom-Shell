@@ -18,6 +18,7 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+const NL = String.fromCharCode(10);
 const ok = (): FakeReply => ({ exitCode: 0, stdout: "[]\n" });
 const until = async (cond: () => boolean, what: string) => {
   for (let i = 0; i < 400; i++) {
@@ -94,6 +95,37 @@ describe("佇列", () => {
       "teleport 1,1", "bot#3", "teleport 2,2", "bot#4", "stop", // B
     ]);
     expect((await t.app.inject("/api/queue")).json()).toEqual({ running: null, queued: [] });
+  });
+
+  it("Quiet Batch 與 Target Search 排進同一個佇列，也受取消與 stop 管轄", async () => {
+    const g = gate();
+    const quietReply = (): FakeReply => ({
+      exitCode: 1,
+      stdout: JSON.stringify([]) + NL + JSON.stringify({ quiet_area: false, verdict: false, reason: "有人在打", giants: [], claimed: null, unread: 0 }) + NL,
+    });
+    const t = await setup("1,1 甲"+NL+"2,2 乙", (i) => (i === 0 ? g.wait.then(ok) : quietReply()));
+    const a = await start(t); // Target Search 先跑
+    const q = await t.app.inject({ method: "POST", url: "/api/batches/quiet-search", payload: { listId: t.listId, radius: 500 } });
+    expect(q.statusCode).toBe(201);
+    const b = (q.json() as { batchId: number }).batchId;
+    await until(() => t.bot.calls.length === 1, "A 開始");
+    expect((await t.app.inject(`/api/batches/${b}`)).json().status).toBe("queued");
+    expect((await t.app.inject("/api/queue")).json().queued.map((x: { feature: string }) => x.feature)).toEqual(["quiet-search"]);
+    expect(t.timeline).toEqual(["teleport 1,1", "bot#1"]);
+    g.open();
+    await events(t, a);
+    expect(last(await events(t, b))).toMatchObject({ status: "done" });
+    expect(t.bot.calls.map((c) => c.command)).toEqual(["hunt", "hunt", "quiet", "quiet"]);
+
+    // Quiet 也能強制停止
+    const h = await setup("1,1 甲"+NL+"2,2 乙", () => ({ ...ok(), hang: true }));
+    const r = await h.app.inject({ method: "POST", url: "/api/batches/quiet-search", payload: { listId: h.listId, radius: 500 } });
+    const qid = (r.json() as { batchId: number }).batchId;
+    await until(() => h.bot.calls.length === 1, "quiet bot 開始");
+    await cancel(h, qid, "force");
+    expect(last(await events(h, qid))).toMatchObject({ status: "cancelled" });
+    expect(h.bot.killed).toEqual([1]);
+    expect(h.timeline.at(-1)).toBe("stop");
   });
 
   it("把還在排隊的 Batch 移出佇列：不會跑，狀態是 cancelled", async () => {

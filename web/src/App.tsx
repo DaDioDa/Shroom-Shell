@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import type { ImportLineError, Waypoint, WaypointList } from "@shell/shared";
+import { sweepAreaColor, type ImportLineError, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
-import { WaypointMap } from "./Map.js";
+import { WaypointMap, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
+import { QuietSearchPanel } from "./QuietSearchPanel.js";
 import { TargetSearchPanel } from "./TargetSearchPanel.js";
 import { useBatchView } from "./useBatchView.js";
 
@@ -13,7 +14,7 @@ export function App() {
   const [newName, setNewName] = useState("");
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<ImportLineError[]>([]);
-  const [tab, setTab] = useState<"lists" | "target">("lists");
+  const [tab, setTab] = useState<"lists" | "quiet" | "target">("lists");
   const { view, follow } = useBatchView();
 
   const refreshLists = useCallback(async () => setLists(await api.lists()), []);
@@ -91,11 +92,19 @@ export function App() {
     setWaypoints(await api.reorder(selectedId, ids));
   };
 
+  // Quiet Giant Search 的結果：以該 Waypoint 為中心、邊長 2R 的正方形。
+  const areas: SweepArea[] = view.quietResults.flatMap((o) => {
+    const w = waypoints.find((x) => x.id === o.waypointId);
+    if (!w) return [];
+    return [{ lat: w.lat, lng: w.lng, radius: o.radius, color: sweepAreaColor(o.result.verdict), tooltip: o.result.reason }];
+  });
+
   return (
     <div className="layout">
       <WaypointMap
         waypoints={waypoints}
         sightings={view.sightings}
+        areas={areas}
         onMapClick={selectedId === null ? undefined : addAt}
         onMarkerClick={edit}
       />
@@ -104,10 +113,14 @@ export function App() {
           <button className={tab === "lists" ? "active" : ""} onClick={() => setTab("lists")}>
             Waypoint List
           </button>
+          <button className={tab === "quiet" ? "active" : ""} onClick={() => setTab("quiet")}>
+            Quiet Giant Search
+          </button>
           <button className={tab === "target" ? "active" : ""} onClick={() => setTab("target")}>
             Target Search
           </button>
         </div>
+        {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} onStarted={follow} />}
         {tab === "target" && <TargetSearchPanel list={selected} view={view} onStarted={follow} />}
         {tab === "lists" && <>
         <h3>Waypoint List</h3>
@@ -141,7 +154,7 @@ export function App() {
             <h4>匯入到「{selected.name}」</h4>
             <textarea
               value={text}
-              placeholder={"每行 lat,lng [標籤] 或 Google Maps 連結\n25.033964,121.564468 台北 101"}
+              placeholder={"每行 lat,lng [r=半徑公尺] [標籤] 或 Google Maps 連結\n25.033964,121.564468 r=300 台北 101"}
               onChange={(e) => setText(e.target.value)}
             />
             <button onClick={doImport}>匯入</button>

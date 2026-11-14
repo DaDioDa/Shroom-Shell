@@ -4,3 +4,4 @@ export * from "./sightingCard.js";
 export * from "./batchView.js";
 export * from "./targets.js";
 export * from "./parseMapsLink.js";
+export * from "./sweepArea.js";

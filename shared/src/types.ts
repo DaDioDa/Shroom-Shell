@@ -90,4 +90,26 @@ export type BatchEvent =
   | { type: "stderr"; index: number; line: string }
   | { type: "sighting"; sighting: StoredSighting }
   | { type: "waypoint-failed"; index: number; error: string; screenshotUrl?: string }
+  /** Quiet Giant Search：一個 Waypoint 的答案。radius 是這點實際用的半徑（公尺）。 */
+  | { type: "quiet-result"; index: number; waypointId: number; radius: number; result: QuietResult }
   | { type: "finished"; status: BatchStatus; error?: string };
+
+/** bot `quiet` stdout 最後一行的答案（格式見 pikmin_bloom_bot 的 cli.md）。 */
+export interface QuietResult {
+  /** true＝沒人在打；false＝有人在打；null＝中止。 */
+  quiet_area: boolean | null;
+  /** true＝沒人在打且有巨菇；false＝有人在打或沒有巨菇；null＝無法判斷。 */
+  verdict: boolean | null;
+  reason: string;
+  giants: BotSighting[];
+  /** 觸發 false 的那顆有人打的蘑菇；cell 從 0 起算，人數讀不到為 null。 */
+  claimed: { cell: number; participant_count: number | null } | null;
+  /** 讀不到名稱的蘑菇數，不影響答案。 */
+  unread: number;
+}
+
+export interface QuietSearchParams {
+  listId: number;
+  /** Waypoint 沒有自己的半徑時用這個（公尺）。 */
+  radius: number;
+}

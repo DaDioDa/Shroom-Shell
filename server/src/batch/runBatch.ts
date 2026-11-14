@@ -25,6 +25,8 @@ export interface BatchDeps {
  */
 export interface BatchFeature {
   plan(waypoint: Waypoint): { command: string; args: string[] };
+  /** 這些 exit code 是 feature 自己看得懂的正常答案（預設只有 0）。其他 exit code 算這個 Waypoint 失敗。 */
+  okExitCodes?: number[];
   /** 解析並存下結果（也可以 emit 事件）。回傳要存的 result 與這個 Waypoint 的錯誤（沒有就 null）。 */
   interpret(ctx: {
     deps: BatchDeps;
@@ -32,8 +34,16 @@ export interface BatchFeature {
     waypoint: Waypoint;
     index: number;
     result: BotRunResult;
+    /** bot 這次印的 stderr 每一行。 */
+    stderr: string[];
     runName: string | null;
-  }): { result: unknown; error: string | null };
+  }): {
+    result: unknown;
+    /** 這個 Waypoint 的錯誤（存進紀錄）。 */
+    error: string | null;
+    /** false = 錯誤只記在紀錄，不發 waypoint-failed（feature 自己用別的事件呈現）。預設 true。 */
+    report?: boolean;
+  };
 }
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -108,13 +118,13 @@ export async function runBatch(
         },
       });
       const runName = result.runDir ? basename(result.runDir) : null;
-      let outcome: { result: unknown; error: string | null };
+      let outcome: ReturnType<BatchFeature["interpret"]>;
       if (result.killed) {
         outcome = { result: [], error: FORCE_NOTE };
       } else {
-        outcome = feature.interpret({ deps, batchId, waypoint: w, index, result, runName });
-        if (result.exitCode !== 0 && !outcome.error) outcome.error = failureReason(stderr, result.runDir);
-        if (outcome.error) {
+        outcome = feature.interpret({ deps, batchId, waypoint: w, index, result, stderr, runName });
+        if (!(feature.okExitCodes ?? [0]).includes(result.exitCode) && !outcome.error) outcome.error = failureReason(stderr, result.runDir);
+        if (outcome.error && outcome.report !== false) {
           const shot = runName && result.runDir && existsSync(join(result.runDir, "abort.png")) ? `/api/runs/${runName}/abort.png` : undefined;
           deps.hub.emit(batchId, { type: "waypoint-failed", index, error: outcome.error, ...(shot ? { screenshotUrl: shot } : {}) });
         }

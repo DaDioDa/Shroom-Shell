@@ -1,17 +1,30 @@
 import L from "leaflet";
 import { useEffect, useRef } from "react";
-import type { StoredSighting, Waypoint } from "@shell/shared";
+import { sweepAreaSquare, type StoredSighting, type SweepAreaColor, type Waypoint } from "@shell/shared";
+
+/** 地圖上的 Sweep Area：以 (lat,lng) 為中心、邊長 2R 公尺的正方形。 */
+export interface SweepArea {
+  lat: number;
+  lng: number;
+  radius: number;
+  color: SweepAreaColor;
+  tooltip?: string;
+}
+
+const AREA_COLORS: Record<SweepAreaColor, string> = { green: "#2f9e44", red: "#e03131", gray: "#868e96" };
 
 export function WaypointMap({
   waypoints,
   onMapClick,
   onMarkerClick,
   sightings = [],
+  areas = [],
 }: {
   waypoints: Waypoint[];
   onMapClick?: (lat: number, lng: number) => void;
   onMarkerClick?: (w: Waypoint) => void;
   sightings?: StoredSighting[];
+  areas?: SweepArea[];
 }) {
   const clickRef = useRef({ onMapClick, onMarkerClick });
   clickRef.current = { onMapClick, onMarkerClick };
@@ -19,6 +32,7 @@ export function WaypointMap({
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
   const sightingLayer = useRef<L.LayerGroup | null>(null);
+  const areaLayer = useRef<L.LayerGroup | null>(null);
 
   useEffect(() => {
     const m = L.map(el.current!).setView([25.033964, 121.564468], 13);
@@ -27,6 +41,7 @@ export function WaypointMap({
       attribution: "&copy; OpenStreetMap contributors",
     }).addTo(m);
     m.on("click", (e: L.LeafletMouseEvent) => clickRef.current.onMapClick?.(e.latlng.lat, e.latlng.lng));
+    areaLayer.current = L.layerGroup().addTo(m);
     layer.current = L.layerGroup().addTo(m);
     sightingLayer.current = L.layerGroup().addTo(m);
     map.current = m;
@@ -60,6 +75,17 @@ export function WaypointMap({
         .addTo(g);
     }
   }, [sightings]);
+
+  useEffect(() => {
+    const g = areaLayer.current!;
+    g.clearLayers();
+    for (const a of areas) {
+      const b = sweepAreaSquare(a, a.radius);
+      const color = AREA_COLORS[a.color];
+      const rect = L.rectangle([[b.south, b.west], [b.north, b.east]], { color, fillColor: color, fillOpacity: 0.25, weight: 2 }).addTo(g);
+      if (a.tooltip) rect.bindTooltip(a.tooltip);
+    }
+  }, [areas]);
 
   return <div ref={el} className="map" />;
 }

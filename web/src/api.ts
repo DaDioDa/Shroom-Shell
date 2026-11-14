@@ -1,4 +1,4 @@
-import type { CancelMode, ImportResult, QueueSnapshot, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
+import type { CancelMode, ImportResult, QueueSnapshot, QuietSearchParams, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -20,6 +20,7 @@ export const api = {
   cancelBatch: (id: number, mode: CancelMode) => call<{ ok: true }>("POST", `/api/batches/${id}/cancel`, { mode }),
   targets: () => call<string[]>("GET", "/api/targets"),
   startTargetSearch: (p: TargetSearchParams) => call<{ batchId: number }>("POST", "/api/batches/target-search", p),
+  startQuietSearch: (p: QuietSearchParams) => call<{ batchId: number }>("POST", "/api/batches/quiet-search", p),
   addWaypoint: (listId: number, lat: number, lng: number) =>
     call<Waypoint>("POST", `/api/lists/${listId}/waypoints`, { lat, lng }),
   updateWaypoint: (id: number, patch: { label?: string; radius?: number | null; spotName?: string | null }) =>

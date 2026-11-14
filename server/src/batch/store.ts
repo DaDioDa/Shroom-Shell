@@ -1,4 +1,4 @@
-import type { BatchStatus, BotSighting, StoredSighting, TargetSearchParams } from "@shell/shared";
+import type { BatchStatus, BotSighting, StoredSighting } from "@shell/shared";
 import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Db } from "../db/database.js";
@@ -46,7 +46,7 @@ const toStored = (r: SightingRow, runsDir: string): StoredSighting => ({
   postcardUrl: runFileUrl(runsDir, r.run_dir, r.postcard),
 });
 
-export function createBatch(db: Db, feature: string, params: TargetSearchParams, status: BatchStatus = "queued"): number {
+export function createBatch(db: Db, feature: string, params: { listId: number }, status: BatchStatus = "queued"): number {
   const r = db
     .prepare("INSERT INTO batches (list_id, feature, params, status, created_at) VALUES (?, ?, ?, ?, ?)")
     .run(params.listId, feature, JSON.stringify(params), status, new Date().toISOString());

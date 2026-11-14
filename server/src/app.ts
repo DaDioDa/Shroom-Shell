@@ -2,10 +2,22 @@ import { fileURLToPath } from "node:url";
 import Fastify, { type FastifyInstance } from "fastify";
 import { parseWaypointText, type ImportResult, type Waypoint, type WaypointList } from "@shell/shared";
 import { openDb } from "./db/database.js";
+import { registerBatchRoutes } from "./batch/routes.js";
+import { RealBotRunner, type BotRunner } from "./bot/runner.js";
+import type { Device } from "./device/device.js";
+import { Teleporter } from "./device/teleporter.js";
+import { Adb } from "./device/adb.js";
+import { join } from "node:path";
 
 export interface AppOptions {
   /** 資料目錄（SQLite 放這裡）。預設取環境變數 DATA_DIR，再退回 repo 根目錄的 data/。 */
   dataDir?: string;
+  /** 跑 bot 的介面；預設是真 bot。測試與沒接手機時傳假的。 */
+  bot?: BotRunner;
+  /** 手機；預設是透過 adb 的 Teleporter。 */
+  device?: Device;
+  /** Teleport 後等多久才呼叫 bot（毫秒）。預設取環境變數 TELEPORT_WAIT_MS，再退回 5000。 */
+  waitMs?: number;
 }
 
 export function defaultDataDir(): string {
@@ -33,7 +45,8 @@ const toWaypoint = (r: WaypointRow): Waypoint => ({
 });
 
 export function buildApp(opts: AppOptions = {}): FastifyInstance {
-  const db = openDb(opts.dataDir ?? defaultDataDir());
+  const dataDir = opts.dataDir ?? defaultDataDir();
+  const db = openDb(dataDir);
   const app = Fastify();
   app.addHook("onClose", async () => db.close());
 
@@ -107,6 +120,13 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     });
     const result: ImportResult = { imported, errors };
     return result;
+  });
+
+  registerBatchRoutes(app, db, {
+    bot: opts.bot ?? new RealBotRunner(),
+    device: opts.device ?? new Teleporter(new Adb()),
+    waitMs: opts.waitMs ?? Number(process.env.TELEPORT_WAIT_MS ?? 5000),
+    runsDir: join(dataDir, "runs"),
   });
 
   return app;

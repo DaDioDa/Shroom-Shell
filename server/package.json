@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "dev:fake": "tsx watch src/main.ts --fake",
     "start": "tsx src/main.ts",
     "teleport": "tsx src/cli/teleport.ts",
     "test": "vitest run --passWithNoTests",

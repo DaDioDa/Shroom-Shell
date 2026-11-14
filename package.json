@@ -5,6 +5,7 @@
   "workspaces": ["shared", "server", "web"],
   "scripts": {
     "dev": "concurrently -k -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
+    "dev:fake": "concurrently -k -n server,web -c blue,green \"npm run dev:fake -w server\" \"npm run dev -w web\"",
     "test": "npm test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",

@@ -1,4 +1,5 @@
 import { Adb } from "./adb.js";
+import type { Device } from "./device.js";
 
 const PKG = "io.appium.settings";
 const LOCATION_SERVICE = `${PKG}/.LocationService`;
@@ -29,7 +30,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * Appium 的 LocationService 若還活著就會一直報 `Provider "gps" unknown`。
  * 所以第一次下指令沒到位時，要重啟 LocationService 讓它重新註冊 provider。
  */
-export class Teleporter {
+export class Teleporter implements Device {
   constructor(private readonly adb: Adb) {}
 
   async teleport(to: LatLng, timeoutMs = 10_000): Promise<TeleportResult> {

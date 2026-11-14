@@ -25,7 +25,8 @@ export function openDb(dataDir: string): Db {
       lat REAL NOT NULL,
       lng REAL NOT NULL,
       label TEXT NOT NULL DEFAULT '',
-      radius REAL
+      radius REAL,
+      spot_name TEXT
     );
   `);
   // 之後新增的表。既有的 data/app.db 開起來時補上；已存在的表若要加欄位，用 ensureColumn。
@@ -72,6 +73,8 @@ export function openDb(dataDir: string): Db {
       last_used TEXT NOT NULL
     );
   `);
+  // 舊資料庫沒有 spot_name：CREATE TABLE IF NOT EXISTS 不會補欄位，要自己 ALTER。
+  ensureColumn(db, "waypoints", "spot_name", "TEXT");
   return db;
 }
 

@@ -12,6 +12,8 @@ export interface Waypoint {
   lng: number;
   label: string;
   radius: number | null;
+  /** 遊戲內 Spot 的名稱（ticket 05 Postcard Check 會用）。 */
+  spotName: string | null;
 }
 
 export interface ImportLineError {

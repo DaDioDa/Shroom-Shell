@@ -1,6 +1,11 @@
 import { fileURLToPath } from "node:url";
 import Fastify, { type FastifyInstance } from "fastify";
-import { parseWaypointText, type ImportResult, type Waypoint, type WaypointList } from "@shell/shared";
+import {
+  parseMapsLink,
+  parseWaypointText,
+  type ParsedWaypoint,
+  type ParseError,
+  type ImportResult, type Waypoint, type WaypointList } from "@shell/shared";
 import { openDb } from "./db/database.js";
 import { registerBatchRoutes } from "./batch/routes.js";
 import { RealBotRunner, type BotRunner } from "./bot/runner.js";
@@ -32,9 +37,11 @@ interface WaypointRow {
   lng: number;
   label: string;
   radius: number | null;
+  spot_name: string | null;
 }
 
 const toWaypoint = (r: WaypointRow): Waypoint => ({
+  spotName: r.spot_name,
   id: r.id,
   listId: r.list_id,
   position: r.position,
@@ -43,6 +50,26 @@ const toWaypoint = (r: WaypointRow): Waypoint => ({
   label: r.label,
   radius: r.radius,
 });
+
+/** 匯入文字：每行是 `lat,lng [標籤]` 或 Google Maps 連結。 */
+function parseImportText(text: string): { waypoints: ParsedWaypoint[]; errors: ParseError[] } {
+  const waypoints: ParsedWaypoint[] = [];
+  const errors: ParseError[] = [];
+  text.split(/\r?\n/).forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line) return;
+    if (/^(https?:[/][/]|(maps[.]app[.])?goo[.]gl)/i.test(line)) {
+      const r = parseMapsLink(line);
+      if (r.ok) waypoints.push({ lat: r.lat, lng: r.lng, label: "" });
+      else errors.push({ line: i + 1, text: raw, reason: r.reason });
+      return;
+    }
+    const one = parseWaypointText(raw);
+    waypoints.push(...one.waypoints);
+    errors.push(...one.errors.map((e) => ({ ...e, line: i + 1 })));
+  });
+  return { waypoints, errors };
+}
 
 export function buildApp(opts: AppOptions = {}): FastifyInstance {
   const dataDir = opts.dataDir ?? defaultDataDir();
@@ -109,17 +136,74 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     const text = (req.body as { text?: unknown } | null)?.text;
     if (typeof text !== "string") return reply.code(400).send({ error: "text 必填" });
     if (!listExists(id)) return reply.code(404).send({ error: "找不到清單" });
-    const { waypoints, errors } = parseWaypointText(text);
+    const { waypoints, errors } = parseImportText(text);
     const start = (db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM waypoints WHERE list_id = ?").get(id) as {
       n: number;
     }).n;
     const insert = db.prepare("INSERT INTO waypoints (list_id, position, lat, lng, label) VALUES (?, ?, ?, ?, ?)");
     const imported: Waypoint[] = waypoints.map((w, i) => {
       const r = insert.run(id, start + i, w.lat, w.lng, w.label);
-      return { id: Number(r.lastInsertRowid), listId: id, position: start + i, lat: w.lat, lng: w.lng, label: w.label, radius: null };
+      return { id: Number(r.lastInsertRowid), listId: id, position: start + i, lat: w.lat, lng: w.lng, label: w.label, radius: null, spotName: null };
     });
     const result: ImportResult = { imported, errors };
     return result;
+  });
+
+  const getWaypoint = (id: number) =>
+    db.prepare("SELECT * FROM waypoints WHERE id = ?").get(id) as unknown as WaypointRow | undefined;
+  const isCoord = (lat: unknown, lng: unknown) =>
+    typeof lat === "number" && typeof lng === "number" && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+
+  app.post<{ Params: { id: string } }>("/api/lists/:id/waypoints", async (req, reply) => {
+    const id = Number(req.params.id);
+    if (!listExists(id)) return reply.code(404).send({ error: "找不到清單" });
+    const b = (req.body ?? {}) as { lat?: unknown; lng?: unknown; label?: unknown };
+    if (!isCoord(b.lat, b.lng)) return reply.code(400).send({ error: "lat／lng 不合法" });
+    const label = typeof b.label === "string" ? b.label.trim() : "";
+    const pos = (db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM waypoints WHERE list_id = ?").get(id) as {
+      n: number;
+    }).n;
+    const r = db
+      .prepare("INSERT INTO waypoints (list_id, position, lat, lng, label) VALUES (?, ?, ?, ?, ?)")
+      .run(id, pos, b.lat as number, b.lng as number, label);
+    return reply.code(201).send(toWaypoint(getWaypoint(Number(r.lastInsertRowid))!));
+  });
+
+  app.patch<{ Params: { id: string } }>("/api/waypoints/:id", async (req, reply) => {
+    const id = Number(req.params.id);
+    const row = getWaypoint(id);
+    if (!row) return reply.code(404).send({ error: "找不到 Waypoint" });
+    const b = (req.body ?? {}) as { label?: unknown; radius?: unknown; spotName?: unknown };
+    const label = typeof b.label === "string" ? b.label.trim() : row.label;
+    const radius = b.radius === null ? null : typeof b.radius === "number" && b.radius > 0 ? b.radius : row.radius;
+    const spotName =
+      b.spotName === null ? null : typeof b.spotName === "string" ? b.spotName.trim() || null : row.spot_name;
+    db.prepare("UPDATE waypoints SET label = ?, radius = ?, spot_name = ? WHERE id = ?").run(label, radius, spotName, id);
+    return toWaypoint(getWaypoint(id)!);
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/waypoints/:id", async (req, reply) => {
+    const id = Number(req.params.id);
+    if (!getWaypoint(id)) return reply.code(404).send({ error: "找不到 Waypoint" });
+    db.prepare("DELETE FROM waypoints WHERE id = ?").run(id);
+    return reply.code(204).send();
+  });
+
+  app.put<{ Params: { id: string } }>("/api/lists/:id/order", async (req, reply) => {
+    const id = Number(req.params.id);
+    if (!listExists(id)) return reply.code(404).send({ error: "找不到清單" });
+    const ids = (req.body as { ids?: unknown } | null)?.ids;
+    const current = (db.prepare("SELECT id FROM waypoints WHERE list_id = ?").all(id) as unknown as { id: number }[]).map((r) => r.id);
+    const valid =
+      Array.isArray(ids) &&
+      ids.length === current.length &&
+      new Set(ids).size === ids.length &&
+      ids.every((x) => typeof x === "number" && current.includes(x));
+    if (!valid) return reply.code(400).send({ error: "ids 必須剛好是這個清單的所有 Waypoint" });
+    const upd = db.prepare("UPDATE waypoints SET position = ? WHERE id = ?");
+    (ids as number[]).forEach((wid, i) => upd.run(i, wid));
+    const rows = db.prepare("SELECT * FROM waypoints WHERE list_id = ? ORDER BY position, id").all(id) as unknown as WaypointRow[];
+    return rows.map(toWaypoint);
   });
 
   registerBatchRoutes(app, db, {

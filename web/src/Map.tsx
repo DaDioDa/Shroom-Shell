@@ -2,7 +2,19 @@ import L from "leaflet";
 import { useEffect, useRef } from "react";
 import type { StoredSighting, Waypoint } from "@shell/shared";
 
-export function WaypointMap({ waypoints, sightings = [] }: { waypoints: Waypoint[]; sightings?: StoredSighting[] }) {
+export function WaypointMap({
+  waypoints,
+  onMapClick,
+  onMarkerClick,
+  sightings = [],
+}: {
+  waypoints: Waypoint[];
+  onMapClick?: (lat: number, lng: number) => void;
+  onMarkerClick?: (w: Waypoint) => void;
+  sightings?: StoredSighting[];
+}) {
+  const clickRef = useRef({ onMapClick, onMarkerClick });
+  clickRef.current = { onMapClick, onMarkerClick };
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
@@ -14,6 +26,7 @@ export function WaypointMap({ waypoints, sightings = [] }: { waypoints: Waypoint
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap contributors",
     }).addTo(m);
+    m.on("click", (e: L.LeafletMouseEvent) => clickRef.current.onMapClick?.(e.latlng.lat, e.latlng.lng));
     layer.current = L.layerGroup().addTo(m);
     sightingLayer.current = L.layerGroup().addTo(m);
     map.current = m;
@@ -28,6 +41,10 @@ export function WaypointMap({ waypoints, sightings = [] }: { waypoints: Waypoint
     const pts: L.LatLngTuple[] = [];
     for (const w of waypoints) {
       const marker = L.circleMarker([w.lat, w.lng], { radius: 8 }).addTo(g);
+      marker.on("click", (e) => {
+        L.DomEvent.stopPropagation(e);
+        clickRef.current.onMarkerClick?.(w);
+      });
       marker.bindTooltip(w.label || `${w.lat}, ${w.lng}`, { permanent: true, direction: "top" });
       pts.push([w.lat, w.lng]);
     }

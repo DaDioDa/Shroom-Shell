@@ -62,6 +62,7 @@ export function saveSighting(
   db: Db,
   batchId: number,
   waypointId: number | null,
+  runIndex: number,
   s: BotSighting,
   runDir: string | null,
   runsDir: string,
@@ -69,18 +70,24 @@ export function saveSighting(
   const r = db
     .prepare(
       `INSERT INTO sightings (batch_id, waypoint_id, target, lat, lng, spot_name, participant_count,
-         remaining_seconds, observed_at, map_x, map_y, frame, postcard, run_dir)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         remaining_seconds, observed_at, map_x, map_y, frame, postcard, run_dir, run_idx)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       batchId, waypointId, s.target, s.lat, s.lng, s.spot_name, s.participant_count, s.remaining_seconds,
-      s.observed_at, s.map_position[0], s.map_position[1], s.frame, s.postcard, runDir,
+      s.observed_at, s.map_position[0], s.map_position[1], s.frame, s.postcard, runDir, runIndex,
     );
   return getSighting(db, Number(r.lastInsertRowid), runsDir);
 }
 
 export function getSighting(db: Db, id: number, runsDir: string): StoredSighting {
   return toStored(db.prepare(`${SELECT_SIGHTING} WHERE s.id = ?`).get(id) as unknown as SightingRow, runsDir);
+}
+
+/** Sighting id → 它出自 Batch 的第幾個點（waypoint_runs.idx）。歷史詳情用這個對應，不用 waypointId（Discovery 的格子沒有）。 */
+export function sightingRunIndexes(db: Db, batchId: number): Map<number, number | null> {
+  const rows = db.prepare("SELECT id, run_idx FROM sightings WHERE batch_id = ?").all(batchId) as unknown as { id: number; run_idx: number | null }[];
+  return new Map(rows.map((r) => [r.id, r.run_idx]));
 }
 
 export function listSightings(db: Db, batchId: number, runsDir: string): StoredSighting[] {

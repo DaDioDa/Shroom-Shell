@@ -17,7 +17,7 @@ export function huntArgs(params: TargetSearchParams, point: BatchPoint): string[
 export function targetSearchFeature(params: TargetSearchParams): BatchFeature {
   return {
     plan: (w) => ({ command: "hunt", args: huntArgs(params, w) }),
-    interpret({ deps, batchId, point, result, runName }) {
+    interpret({ deps, batchId, point, index, result, runName }) {
       let sightings: BotSighting[] = [];
       let error: string | null = null;
       try {
@@ -28,7 +28,7 @@ export function targetSearchFeature(params: TargetSearchParams): BatchFeature {
         error = (e as Error).message;
       }
       for (const s of sightings) {
-        const saved = saveSighting(deps.db, batchId, point.waypointId ?? null, s, runName, deps.runsDir);
+        const saved = saveSighting(deps.db, batchId, point.waypointId ?? null, index, s, runName, deps.runsDir);
         deps.hub.emit(batchId, { type: "sighting", sighting: saved });
       }
       return { result: sightings, error };

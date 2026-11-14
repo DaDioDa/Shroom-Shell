@@ -74,7 +74,8 @@ export function openDb(dataDir: string): Db {
       map_y INTEGER,
       frame TEXT,
       postcard TEXT,
-      run_dir TEXT
+      run_dir TEXT,
+      run_idx INTEGER
     );
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,

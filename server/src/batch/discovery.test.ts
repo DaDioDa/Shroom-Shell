@@ -49,7 +49,9 @@ async function events(app: App, batchId: number) {
   return sse.body.split(NL + NL).filter((b) => b.startsWith("data: ")).map((b) => JSON.parse(b.slice(6)) as BatchEvent);
 }
 async function lists(app: App) {
-  return (await app.inject("/api/lists?feature=quiet-search")).json() as WaypointList[];
+  const all: WaypointList[] = [];
+  for (const f of ["quiet-search", "target-search", "postcard-check"]) all.push(...((await app.inject(`/api/lists?feature=${f}`)).json() as WaypointList[]));
+  return all;
 }
 const body = (over: object = {}) => ({ name: "北區", region: region(3000, 2000), radius: 500, spacing: 1000, ...over });
 
@@ -77,8 +79,7 @@ describe("Discovery Batch", () => {
     expect(res.json()).toEqual({ batchId: expect.any(Number) });
     await events(t.app, res.json().batchId);
     expect(await lists(t.app)).toHaveLength(before);
-    const all = (await t.app.inject("/api/lists?feature=quiet-search")).json() as WaypointList[];
-    expect(all.some((l) => l.name.startsWith("Discovery"))).toBe(false);
+    expect((await lists(t.app)).some((l) => l.name.startsWith("Discovery"))).toBe(false);
   });
 
   it("執行紀錄存每格位置，標籤「格 N」，沒有 waypointId；Batch 沒有清單", async () => {
@@ -101,8 +102,7 @@ describe("Discovery Batch", () => {
     await events(t.app, batchId);
     const d = (await t.app.inject(`/api/history/${batchId}`)).json() as HistoryDetail;
     expect(d.discovery).toEqual({ name: "北區", region: r, radius: 400, spacing: 1000 });
-    const q = (await t.app.inject("/api/lists?feature=quiet-search")).json();
-    expect(q).toEqual([]);
+    expect(await lists(t.app)).toEqual([]);
   });
 
   it("名稱留空時後端自動命名「探索 YYYY-MM-DD HH:mm」", async () => {
@@ -137,12 +137,12 @@ describe("Discovery Batch", () => {
     expect((await t.app.inject(`/api/batches/${batchId}`)).json().feature).toBe("discovery");
   });
 
-  it("歷史頁把 Discovery 當 Quiet 摘要（是／不是／無法判斷）", async () => {
+  it("歷史頁把 Discovery 當 Quiet 摘要（是／不是／無法判斷），用「格子」不叫 Waypoint", async () => {
     const t = setup((i) => reply([true, false, null][i]!));
     const { batchId } = (await start(t.app, body({ region: region(3000, 1000) }))).json();
     await events(t.app, batchId);
     const rows = (await t.app.inject("/api/history")).json() as { id: number; summary: string }[];
-    expect(rows.find((r) => r.id === batchId)!.summary).toBe("3 個 Waypoint：是 1、不是 1、無法判斷 1");
+    expect(rows.find((r) => r.id === batchId)!.summary).toBe("3 個格子：是 1、不是 1、無法判斷 1");
   });
 
   it("超過 10 km 拒絕並說明原因，不建 Batch、不碰手機", async () => {
@@ -191,5 +191,24 @@ describe("預估時間的實測來源", () => {
     const { avgMsPerPoint } = (await t.app.inject("/api/quiet-stats")).json();
     expect(avgMsPerPoint).toBeGreaterThanOrEqual(40);
     expect(avgMsPerPoint).toBeLessThan(2000);
+  });
+});
+
+describe("B2：Discovery 歷史詳情的 Sighting 依格子對應", () => {
+  const giant = (spot: string) => ({
+    target: "巨大 輝煌蘑菇", lat: 25.03, lng: 121.56, spot_name: spot, participant_count: 0, remaining_seconds: null,
+    observed_at: "2026-11-14T14:08:00+08:00", map_position: [1, 2] as [number, number], frame: null, postcard: null,
+  });
+  const withGiant = (spot: string | null): FakeReply => ({
+    exitCode: 0,
+    stdout: JSON.stringify(spot ? [giant(spot)] : []) + NL + JSON.stringify({ ...answer(true), giants: spot ? [giant(spot)] : [] }) + NL,
+    stderr: [],
+  });
+  it("兩格各找到不同巨菇，各自只有自己的；沒找到的格子是空的", async () => {
+    const t = setup((i) => withGiant(["甲", "乙", null][i]!));
+    const { batchId } = (await start(t.app, body({ region: region(3000, 1000) }))).json();
+    await events(t.app, batchId);
+    const d = (await t.app.inject(`/api/history/${batchId}`)).json() as HistoryDetail;
+    expect(d.waypoints.map((w) => w.sightings.map((s) => s.spot_name))).toEqual([["甲"], ["乙"], []]);
   });
 });

@@ -86,11 +86,11 @@ describe("dragCorner：對角固定、兩個方向都對齊", () => {
 
 describe("dragEdge：對邊固定、只改一個方向", () => {
   const r = regionFromCenter(C, 2000, 2000);
-  it("拖北邊：南邊與東西不變，高度對齊", () => {
+  it("拖北邊：南邊與東西中心不變、公尺寬不變，高度對齊", () => {
     const next = dragEdge(r, "n", at(0, 2000), 1000);
     expect(next.south).toBeCloseTo(r.south, 9);
-    expect(next.west).toBe(r.west);
-    expect(next.east).toBe(r.east);
+    expect((next.west + next.east) / 2).toBeCloseTo((r.west + r.east) / 2, 9);
+    near(size(next).w, size(r).w);
     near(size(next).h, 3000);
   });
   it("拖南、東、西邊：各自對邊固定", () => {
@@ -204,4 +204,25 @@ describe("gridStats 的覆蓋提示", () => {
     const s = gridStats(regionFromCenter(C, 4000, 4000), linkedSpacing(2000), 2000);
     expect(s.coverage).toEqual({ gap: false, overlapPercent: 0 });
   });
+});
+
+describe("B1：平移與拖南北邊後公尺寬不變、格數不變", () => {
+  const base = () => regionFromCenter(C, 3000, 2000);
+  const same = (before: Region, after: Region, rowsChange = false) => {
+    const a = gridStats(before, 1000, 500);
+    const b = gridStats(after, 1000, 500);
+    expect([b.cols, rowsChange ? 0 : b.rows, Math.round(b.cellW)]).toEqual([a.cols, rowsChange ? 0 : a.rows, Math.round(a.cellW)]);
+    expect(a.cols).toBe(3);
+    expect(Math.abs(size(after).w - 3000)).toBeLessThan(1); // 間距整數倍的小容差
+  };
+  it("往南平移 11 m 與 1 km，cols、rows、cellW 不變", () => {
+    for (const dLat of [-0.0001, -0.01, -0.5]) same(base(), shiftRegion(base(), dLat, 0));
+  });
+  it("往北平移，cols 不變", () => same(base(), shiftRegion(base(), 0.5, 0)));
+  it("拖南邊拉高到 10 km，寬度與 cols 不變，高度對齊", () => {
+    const r = dragEdge(base(), "s", at(0, -9000), 1000);
+    same(base(), r, true);
+    near(size(r).h, 10_000);
+  });
+  it("拖北邊拉高，cols 不變", () => same(base(), dragEdge(base(), "n", at(0, 9000), 1000), true));
 });

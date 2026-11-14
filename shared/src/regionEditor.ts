@@ -52,23 +52,27 @@ export function dragCorner(r: Region, corner: Corner, p: LatLng, spacingM: numbe
   return { south: Math.min(fixLat, lat2), north: Math.max(fixLat, lat2), west: Math.min(fixLng, lng2), east: Math.max(fixLng, lng2) };
 }
 
-/** 拖某條邊到 p：對邊固定，只改那個方向，對齊且不翻面。 */
+/** 把 Region 的南北界換成 south/north，東西界依新的中間緯度重算，維持公尺寬不變（經度中心不動）。 */
+function withLatitudes(r: Region, south: number, north: number): Region {
+  const { w } = regionSizeM(r);
+  const lngCenter = (r.west + r.east) / 2;
+  const half = w / 2 / mPerDegLng((south + north) / 2);
+  return { south, north, west: lngCenter - half, east: lngCenter + half };
+}
+
+/** 拖某條邊到 p：對邊固定，只改那個方向，對齊且不翻面。拖南北邊時公尺寬不變。 */
 export function dragEdge(r: Region, edge: Edge, p: LatLng, spacingM: number): Region {
   const k = mPerDegLng((r.south + r.north) / 2);
   const snap = (m: number) => snapLength(Math.max(0, m), spacingM);
-  if (edge === "n") return { ...r, north: r.south + snap((p.lat - r.south) * M_PER_DEG_LAT) / M_PER_DEG_LAT };
-  if (edge === "s") return { ...r, south: r.north - snap((r.north - p.lat) * M_PER_DEG_LAT) / M_PER_DEG_LAT };
+  if (edge === "n") return withLatitudes(r, r.south, r.south + snap((p.lat - r.south) * M_PER_DEG_LAT) / M_PER_DEG_LAT);
+  if (edge === "s") return withLatitudes(r, r.north - snap((r.north - p.lat) * M_PER_DEG_LAT) / M_PER_DEG_LAT, r.north);
   if (edge === "e") return { ...r, east: r.west + snap((p.lng - r.west) * k) / k };
   return { ...r, west: r.east - snap((r.east - p.lng) * k) / k };
 }
 
-/** 平移：寬高不變。 */
-export const shiftRegion = (r: Region, dLat: number, dLng: number): Region => ({
-  south: r.south + dLat,
-  north: r.north + dLat,
-  west: r.west + dLng,
-  east: r.east + dLng,
-});
+/** 平移：公尺寬高不變（緯度變了，東西界依新的中間緯度重算）。 */
+export const shiftRegion = (r: Region, dLat: number, dLng: number): Region =>
+  withLatitudes({ ...r, west: r.west + dLng, east: r.east + dLng }, r.south + dLat, r.north + dLat);
 
 /** 改間距後，以中心為準把 Region 重新對齊。 */
 export function resnapRegion(r: Region, spacingM: number): Region {

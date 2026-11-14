@@ -41,7 +41,13 @@ async function setup() {
   const h = await run("target-search", "/api/batches/target-search", { targets: ["巨大 *"], radius: 500, skipCrowded: 0 });
   const q1 = await run("quiet-search", "/api/batches/quiet-search", { radius: 300 });
   const q2 = await run("quiet-search", "/api/batches/quiet-search", { radius: 300 });
-  return { app, h, q1, q2 };
+  const discover = async () => {
+    const res = await app.inject({ method: "POST", url: "/api/batches/discovery", payload: { name: "D", region: { south: 25, north: 25.009, west: 121, east: 121.0099 }, radius: 500, spacing: 1000 } });
+    const { batchId } = res.json() as { batchId: number };
+    await app.inject(`/api/batches/${batchId}/events`);
+    return batchId;
+  };
+  return { app, h, q1, q2, discover };
 }
 
 describe("依功能篩選", () => {
@@ -61,5 +67,17 @@ describe("依功能篩選", () => {
     expect(await spots("?feature=quiet-search")).toEqual(["Q", "Q"]);
     expect(await spots("?feature=discovery")).toEqual([]);
     expect((await spots("")).sort()).toEqual(["H", "Q", "Q"]);
+  });
+
+  it("會產生 Sighting 的 Discovery：?feature=discovery 只有它的，quiet-search 不含它的", async () => {
+    const t = await setup();
+    const d = await t.discover();
+    const rows = async (qs: string) => (await t.app.inject(`/api/sightings${qs}`)).json() as { batchId: number }[];
+    const disc = await rows("?feature=discovery");
+    expect(disc.length).toBeGreaterThan(0);
+    expect(new Set(disc.map((s) => s.batchId))).toEqual(new Set([d]));
+    const quiet = await rows("?feature=quiet-search");
+    expect(quiet.map((s) => s.batchId).sort()).toEqual([t.q1, t.q2]);
+    expect((await rows("?feature=target-search")).map((s) => s.batchId)).toEqual([t.h]);
   });
 });

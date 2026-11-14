@@ -38,7 +38,7 @@ export function quietSearchFeature(params: QuietSearchParams): BatchFeature {
       const result = interpretQuietRun({ exitCode: run.exitCode, stdout: run.stdout, stderr, runDir: run.runDir });
       const giants: BotSighting[] = result.verdict === null ? [] : result.giants;
       for (const g of giants) {
-        const saved = saveSighting(deps.db, batchId, point.waypointId ?? null, g, runName, deps.runsDir);
+        const saved = saveSighting(deps.db, batchId, point.waypointId ?? null, index, g, runName, deps.runsDir);
         deps.hub.emit(batchId, { type: "sighting", sighting: saved });
       }
       deps.hub.emit(batchId, { type: "quiet-result", index, waypointId: point.waypointId ?? null, point, radius: sweepRadius({ radius: point.radius ?? null }, params.radius), result, ...(abortShotUrl ? { screenshotUrl: abortShotUrl } : {}) });

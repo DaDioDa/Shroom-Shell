@@ -2,7 +2,7 @@ import { rmSync } from "node:fs";
 import { sweepRadius, type HistoryDetail, type HistoryRow, type BatchPoint, type HistoryWaypoint, type CheckResult, type QuietResult, type Region } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { safeRunPath } from "./runPath.js";
-import { listSightings } from "./store.js";
+import { listSightings, sightingRunIndexes } from "./store.js";
 import { toOutcome } from "./postcardCheck.js";
 import { abortShotUrl } from "./runBatch.js";
 
@@ -75,7 +75,7 @@ function summarize(db: Db, b: BatchRow): string {
       const v = parseJson<QuietResult>(r.result_json)?.verdict;
       counts[v === true ? "yes" : v === false ? "no" : "unknown"]++;
     }
-    return `${total} 個 Waypoint：是 ${counts.yes}、不是 ${counts.no}、無法判斷 ${counts.unknown}`;
+    return `${total} 個${b.feature === "discovery" ? "格子" : " Waypoint"}：是 ${counts.yes}、不是 ${counts.no}、無法判斷 ${counts.unknown}`;
   }
   const n = (db.prepare("SELECT COUNT(*) AS n FROM sightings WHERE batch_id = ?").get(b.id) as { n: number }).n;
   return `${total} 個 Waypoint，找到 ${n} 筆 Sighting`;
@@ -110,6 +110,7 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
   if (!b) return null;
   const params = parseJson<{ radius?: number }>(b.params);
   const sightings = listSightings(db, id, runsDir);
+  const runIndexes = sightingRunIndexes(db, id);
   const waypoints = loadRuns(db, id).map((r): HistoryWaypoint => {
     // 位置、標籤、半徑都是執行當時記下的（waypoint_runs），不回查 waypoints 表。
     const point: BatchPoint = { lat: r.lat, lng: r.lng, label: r.label, radius: r.radius, waypointId: r.waypoint_id };
@@ -128,7 +129,7 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
       error: r.error,
       runDir: r.run_dir,
       abortUrl,
-      sightings: sightings.filter((s) => s.waypointId === r.waypoint_id),
+      sightings: sightings.filter((s) => runIndexes.get(s.id) === r.idx),
       check: b.feature === "postcard-check" && checkResult ? toOutcome(runsDir, r.run_dir, r.idx, point, checkResult, abortUrl, b.images_cleared === 1) : null,
       quiet: stored ? { radius, result: result as QuietResult } : null,
     };

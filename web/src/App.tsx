@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { sweepAreaColor, type ImportLineError, type Waypoint, type WaypointList } from "@shell/shared";
+import { sweepAreaColor, type ImportLineError, type Region, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
+import { DiscoveryPanel } from "./DiscoveryPanel.js";
 import { QuietSearchPanel } from "./QuietSearchPanel.js";
 import { TargetSearchPanel } from "./TargetSearchPanel.js";
 import { useBatchView } from "./useBatchView.js";
@@ -14,7 +15,9 @@ export function App() {
   const [newName, setNewName] = useState("");
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<ImportLineError[]>([]);
-  const [tab, setTab] = useState<"lists" | "quiet" | "target">("lists");
+  const [tab, setTab] = useState<"lists" | "quiet" | "discovery" | "target">("lists");
+  const [region, setRegion] = useState<Region | null>(null);
+  const [drawing, setDrawing] = useState(false);
   const { view, follow } = useBatchView();
 
   const refreshLists = useCallback(async () => setLists(await api.lists()), []);
@@ -105,7 +108,10 @@ export function App() {
         waypoints={waypoints}
         sightings={view.sightings}
         areas={areas}
-        onMapClick={selectedId === null ? undefined : addAt}
+        region={tab === "discovery" ? region : null}
+        drawing={tab === "discovery" && drawing}
+        onRegionDrawn={(r) => (setRegion(r), setDrawing(false))}
+        onMapClick={selectedId === null || tab === "discovery" ? undefined : addAt}
         onMarkerClick={edit}
       />
       <div className="panel">
@@ -116,11 +122,27 @@ export function App() {
           <button className={tab === "quiet" ? "active" : ""} onClick={() => setTab("quiet")}>
             Quiet Giant Search
           </button>
+          <button className={tab === "discovery" ? "active" : ""} onClick={() => setTab("discovery")}>
+            Discovery
+          </button>
           <button className={tab === "target" ? "active" : ""} onClick={() => setTab("target")}>
             Target Search
           </button>
         </div>
         {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} onStarted={follow} />}
+        {tab === "discovery" && (
+          <DiscoveryPanel
+            region={region}
+            drawing={drawing}
+            onDraw={() => setDrawing(true)}
+            view={view}
+            onStarted={async (batchId, listId) => {
+              await refreshLists();
+              setSelectedId(listId);
+              follow(batchId);
+            }}
+          />
+        )}
         {tab === "target" && <TargetSearchPanel list={selected} view={view} onStarted={follow} />}
         {tab === "lists" && <>
         <h3>Waypoint List</h3>

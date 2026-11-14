@@ -5,3 +5,4 @@ export * from "./batchView.js";
 export * from "./targets.js";
 export * from "./parseMapsLink.js";
 export * from "./sweepArea.js";
+export * from "./discovery.js";

@@ -2,12 +2,13 @@ import { createReadStream, existsSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import type { FastifyInstance } from "fastify";
-import type { CancelMode, QuietSearchParams, TargetSearchParams, Waypoint } from "@shell/shared";
+import { planDiscovery, type CancelMode, type QuietSearchParams, type Region, TargetSearchParams, Waypoint } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { BatchHub } from "./hub.js";
 import { BatchQueue } from "./queue.js";
 import { runBatch, type BatchDeps, type BatchFeature } from "./runBatch.js";
-import { createBatch, finishBatch, getBatch, listSightings, listTargets, rememberTargets } from "./store.js";
+import { createBatch, finishBatch, getBatch, listSightings, listTargets, quietAverageMs, rememberTargets } from "./store.js";
+import { discoveryFeature } from "./discovery.js";
 import { quietSearchFeature } from "./quietSearch.js";
 import { targetSearchFeature } from "./targetSearch.js";
 
@@ -87,6 +88,36 @@ export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<Bat
     const batchId = createBatch(db, "quiet-search", params);
     start(batchId, "quiet-search", params.listId, quietSearchFeature(params), waypoints);
     return reply.code(201).send({ batchId });
+  });
+
+  app.get("/api/quiet-stats", async () => ({ avgMsPerPoint: quietAverageMs(db) }));
+
+  // Discovery：Region 鋪成格子（存成一份「Discovery 鋪點」清單當 Batch 的輸入），之後就是一個 quiet Batch。
+  app.post("/api/batches/discovery", async (req, reply) => {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const r = (b.region ?? {}) as Record<string, unknown>;
+    const name = typeof b.name === "string" ? b.name.trim() : "";
+    const nums = [r.south, r.west, r.north, r.east];
+    if (!name || !nums.every((n) => typeof n === "number" && Number.isFinite(n)) || typeof b.radius !== "number" || !(b.radius > 0) || typeof b.spacing !== "number" || !(b.spacing > 0)) {
+      return reply.code(400).send({ error: "需要 name、region（south／west／north／east）、radius > 0、spacing > 0" });
+    }
+    const plan = planDiscovery({ region: r as unknown as Region, spacingM: b.spacing, avgMsPerPoint: quietAverageMs(db) });
+    if (!plan.ok) return reply.code(400).send({ error: plan.reason });
+    if (plan.needsConfirm && b.confirmed !== true) {
+      return reply.code(409).send({ error: `這會跑 ${plan.points.length} 個點，需要再確認一次`, needsConfirm: true, points: plan.points.length, estimateMs: plan.estimateMs });
+    }
+    // 每次另開一份鋪點清單（不覆蓋舊的，舊 Batch 的歷史才對得上）。
+    const stamp = new Date().toLocaleString("sv-SE", { hour12: false }).slice(0, 16);
+    const gridId = Number(db.prepare("INSERT INTO waypoint_lists (name) VALUES (?)").run(`Discovery 鋪點：${name}（${stamp}）`).lastInsertRowid);
+    const ins = db.prepare("INSERT INTO waypoints (list_id, position, lat, lng, label) VALUES (?, ?, ?, ?, ?)");
+    plan.points.forEach((p, i) => ins.run(gridId, i, p.lat, p.lng, `格 ${i + 1}`));
+    const waypoints = db
+      .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius, spot_name AS spotName FROM waypoints WHERE list_id = ? ORDER BY position, id")
+      .all(gridId) as unknown as Waypoint[];
+    const params = { listId: gridId, radius: b.radius, regionName: name, region: r, spacing: b.spacing };
+    const batchId = createBatch(db, "discovery", params);
+    start(batchId, "discovery", gridId, discoveryFeature(params), waypoints);
+    return reply.code(201).send({ batchId, listId: gridId });
   });
 
   app.get("/api/targets", async () => listTargets(db));

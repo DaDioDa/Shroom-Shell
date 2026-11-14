@@ -101,6 +101,7 @@ export async function runBatch(
     for (const [i, w] of waypoints.entries()) {
       if (error || control.stopRequested) break;
       const index = i + 1;
+      const startedAt = Date.now();
       deps.hub.emit(batchId, { type: "progress", index, total, waypointId: w.id, label: w.label });
       await deps.device.teleport({ lat: w.lat, lng: w.lng });
       await sleep(deps.waitMs, control.signal);
@@ -129,7 +130,7 @@ export async function runBatch(
           deps.hub.emit(batchId, { type: "waypoint-failed", index, error: outcome.error, ...(shot ? { screenshotUrl: shot } : {}) });
         }
       }
-      saveWaypointRun(deps.db, { batchId, waypointId: w.id, index, exitCode: result.killed ? null : result.exitCode, result: outcome.result, runDir: runName, error: outcome.error });
+      saveWaypointRun(deps.db, { batchId, waypointId: w.id, index, exitCode: result.killed ? null : result.exitCode, result: outcome.result, runDir: runName, error: outcome.error, durationMs: Date.now() - startedAt });
     }
   } catch (e) {
     error = errorMessage(e);

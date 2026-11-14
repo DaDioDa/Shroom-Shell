@@ -16,7 +16,7 @@ export interface CellInfo {
 const NEW = "new";
 const ANSWER = { green: "是", red: "不是", gray: "無法判斷" } as const;
 
-/** 點 Grid Cell 後的卡片：答案與原因；綠格可以加入無人巨菇清單（畫面內表單，不用 window.prompt）。 */
+/** 點 Grid Cell 後的卡片：答案與原因；綠格可以加入無人巨菇清單（畫面內表單，不用瀏覽器對話框）。 */
 export function CellPanel({ cell, onClose, onAdded }: { cell: CellInfo; onClose: () => void; onAdded?: () => void }) {
   const [adding, setAdding] = useState(false);
   const [lists, setLists] = useState<WaypointList[]>([]);

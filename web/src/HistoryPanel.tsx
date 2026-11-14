@@ -53,7 +53,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
           Batch #{detail.id}｜{FEATURE[detail.feature] ?? detail.feature}
         </h4>
         <p className="muted">
-          {detail.listName ?? "（清單已刪除）"}｜{STATUS[detail.status] ?? detail.status}｜{fmt(detail.createdAt)} → {fmt(detail.finishedAt)}
+          {detail.listName ?? "（清單已刪除）"}{detail.listId === null && detail.listName ? "（清單已刪除）" : ""}｜{STATUS[detail.status] ?? detail.status}｜{fmt(detail.createdAt)} → {fmt(detail.finishedAt)}
         </p>
         <p>{detail.summary}</p>
         {detail.imagesCleared && <p className="muted">圖片已清除（超過 run 資料夾上限，只保留文字結果）</p>}
@@ -101,7 +101,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
           </strong>
           ：{STATUS[r.status] ?? r.status}
           <div className="muted">
-            {r.listName ?? "（清單已刪除）"}｜{fmt(r.createdAt)} → {fmt(r.finishedAt)}
+            {r.listName ?? "（清單已刪除）"}{r.listId === null && r.listName ? "（清單已刪除）" : ""}｜{fmt(r.createdAt)} → {fmt(r.finishedAt)}
           </div>
           <div>{r.summary}</div>
           {r.imagesCleared && <div className="muted">圖片已清除</div>}

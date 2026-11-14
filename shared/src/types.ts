@@ -124,7 +124,8 @@ export interface QuietSearchParams {
 export interface HistoryRow {
   id: number;
   feature: string;
-  listId: number;
+  /** 清單被刪掉後是 null；listName 仍是刪除前的名稱。 */
+  listId: number | null;
   listName: string | null;
   status: string;
   error: string | null;

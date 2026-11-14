@@ -52,8 +52,8 @@ const SELECT_SIGHTING = "SELECT s.*, b.images_cleared FROM sightings s JOIN batc
 
 export function createBatch(db: Db, feature: string, params: { listId: number }, status: BatchStatus = "queued"): number {
   const r = db
-    .prepare("INSERT INTO batches (list_id, feature, params, status, created_at) VALUES (?, ?, ?, ?, ?)")
-    .run(params.listId, feature, JSON.stringify(params), status, new Date().toISOString());
+    .prepare("INSERT INTO batches (list_id, list_name, feature, params, status, created_at) VALUES (?, (SELECT name FROM waypoint_lists WHERE id = ?), ?, ?, ?, ?)")
+    .run(params.listId, params.listId, feature, JSON.stringify(params), status, new Date().toISOString());
   return Number(r.lastInsertRowid);
 }
 
@@ -122,7 +122,7 @@ export function finishBatch(db: Db, batchId: number, status: BatchStatus, error:
 
 export interface BatchRecord {
   id: number;
-  listId: number;
+  listId: number | null;
   feature: string;
   params: unknown;
   status: string;
@@ -134,7 +134,7 @@ export interface BatchRecord {
 
 export function getBatch(db: Db, id: number): BatchRecord | null {
   const b = db.prepare("SELECT * FROM batches WHERE id = ?").get(id) as
-    | { id: number; list_id: number; feature: string; params: string; status: string; error: string | null; created_at: string; finished_at: string | null }
+    | { id: number; list_id: number | null; feature: string; params: string; status: string; error: string | null; created_at: string; finished_at: string | null }
     | undefined;
   if (!b) return null;
   const runs = db.prepare("SELECT * FROM waypoint_runs WHERE batch_id = ? ORDER BY idx").all(id) as unknown as {

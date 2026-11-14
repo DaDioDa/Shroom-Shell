@@ -14,7 +14,7 @@ export const BUSY_STATUSES = ["running", "queued"];
 
 interface BatchRow {
   id: number;
-  list_id: number;
+  list_id: number | null;
   feature: string;
   params: string;
   status: string;
@@ -37,7 +37,7 @@ interface RunRow {
   wp_radius: number | null;
 }
 
-const SELECT_BATCH = `SELECT b.*, l.name AS list_name FROM batches b LEFT JOIN waypoint_lists l ON l.id = b.list_id`;
+const SELECT_BATCH = `SELECT b.*, COALESCE(l.name, b.list_name) AS list_name FROM batches b LEFT JOIN waypoint_lists l ON l.id = b.list_id`;
 
 function parseJson<T>(text: string | null): T | null {
   if (text === null) return null;

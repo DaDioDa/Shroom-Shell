@@ -121,6 +121,10 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   app.delete<{ Params: { id: string } }>("/api/lists/:id", async (req, reply) => {
     const id = Number(req.params.id);
     if (!listExists(id)) return reply.code(404).send({ error: "找不到清單" });
+    const busy = db.prepare("SELECT COUNT(*) AS n FROM batches WHERE list_id = ? AND status IN ('running', 'queued')").get(id) as { n: number };
+    if (busy.n > 0) return reply.code(409).send({ error: "這個清單有執行中或排隊中的 Batch，不能刪除" });
+    // Batch 歷史留著：先把清單目前的名稱記進 Batch，再刪清單（batches.list_id 會變 NULL）。
+    db.prepare("UPDATE batches SET list_name = (SELECT name FROM waypoint_lists WHERE id = ?) WHERE list_id = ?").run(id, id);
     db.prepare("DELETE FROM waypoint_lists WHERE id = ?").run(id);
     return reply.code(204).send();
   });

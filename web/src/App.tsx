@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { ImportLineError, Waypoint, WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap } from "./Map.js";
+import { TargetSearchPanel } from "./TargetSearchPanel.js";
+import { useBatchView } from "./useBatchView.js";
 
 export function App() {
   const [lists, setLists] = useState<WaypointList[]>([]);
@@ -10,6 +12,8 @@ export function App() {
   const [newName, setNewName] = useState("");
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<ImportLineError[]>([]);
+  const [tab, setTab] = useState<"lists" | "target">("lists");
+  const { view, follow } = useBatchView();
 
   const refreshLists = useCallback(async () => setLists(await api.lists()), []);
   useEffect(() => void refreshLists(), [refreshLists]);
@@ -52,8 +56,18 @@ export function App() {
 
   return (
     <div className="layout">
-      <WaypointMap waypoints={waypoints} />
+      <WaypointMap waypoints={waypoints} sightings={view.sightings} />
       <div className="panel">
+        <div className="tabs">
+          <button className={tab === "lists" ? "active" : ""} onClick={() => setTab("lists")}>
+            Waypoint List
+          </button>
+          <button className={tab === "target" ? "active" : ""} onClick={() => setTab("target")}>
+            Target Search
+          </button>
+        </div>
+        {tab === "target" && <TargetSearchPanel list={selected} view={view} onStarted={follow} />}
+        {tab === "lists" && <>
         <h3>Waypoint List</h3>
         <input value={newName} placeholder="新清單名稱" onChange={(e) => setNewName(e.target.value)} />
         <button onClick={create}>建立</button>
@@ -90,6 +104,7 @@ export function App() {
             )}
           </>
         )}
+        </>}
       </div>
     </div>
   );

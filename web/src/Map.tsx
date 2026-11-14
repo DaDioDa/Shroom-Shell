@@ -1,11 +1,12 @@
 import L from "leaflet";
 import { useEffect, useRef } from "react";
-import type { Waypoint } from "@shell/shared";
+import type { StoredSighting, Waypoint } from "@shell/shared";
 
-export function WaypointMap({ waypoints }: { waypoints: Waypoint[] }) {
+export function WaypointMap({ waypoints, sightings = [] }: { waypoints: Waypoint[]; sightings?: StoredSighting[] }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
+  const sightingLayer = useRef<L.LayerGroup | null>(null);
 
   useEffect(() => {
     const m = L.map(el.current!).setView([25.033964, 121.564468], 13);
@@ -14,6 +15,7 @@ export function WaypointMap({ waypoints }: { waypoints: Waypoint[] }) {
       attribution: "&copy; OpenStreetMap contributors",
     }).addTo(m);
     layer.current = L.layerGroup().addTo(m);
+    sightingLayer.current = L.layerGroup().addTo(m);
     map.current = m;
     return () => {
       m.remove();
@@ -31,6 +33,16 @@ export function WaypointMap({ waypoints }: { waypoints: Waypoint[] }) {
     }
     if (pts.length) map.current!.fitBounds(L.latLngBounds(pts), { maxZoom: 16, padding: [40, 40] });
   }, [waypoints]);
+
+  useEffect(() => {
+    const g = sightingLayer.current!;
+    g.clearLayers();
+    for (const s of sightings) {
+      L.circleMarker([s.lat, s.lng], { radius: 10, color: "#d9480f", fillColor: "#ff922b", fillOpacity: 0.9 })
+        .bindTooltip(`${s.target}｜${s.spot_name}`)
+        .addTo(g);
+    }
+  }, [sightings]);
 
   return <div ref={el} className="map" />;
 }

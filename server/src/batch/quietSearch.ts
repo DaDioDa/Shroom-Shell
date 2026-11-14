@@ -42,7 +42,8 @@ export function quietSearchFeature(params: QuietSearchParams): BatchFeature {
         deps.hub.emit(batchId, { type: "sighting", sighting: saved });
       }
       deps.hub.emit(batchId, { type: "quiet-result", index, waypointId: waypoint.id, radius: sweepRadius(waypoint, params.radius), result });
-      return { result, error: result.verdict === null ? result.reason : null, report: false };
+      // 這點實際用的半徑一起存進 result_json，歷史頁才還原得出來（Waypoint 半徑之後可能被改）。
+      return { result: { ...result, radius: sweepRadius(waypoint, params.radius) }, error: result.verdict === null ? result.reason : null, report: false };
     },
   };
 }

@@ -114,6 +114,14 @@ describe("Discovery Batch", () => {
     expect((await t.app.inject(`/api/batches/${batchId}`)).json().feature).toBe("discovery");
   });
 
+  it("歷史頁把 Discovery 當 Quiet 摘要（是／不是／無法判斷）", async () => {
+    const t = setup((i) => reply([true, false, null][i]!));
+    const { batchId } = (await start(t.app, body({ region: region(3000, 1000) }))).json();
+    await events(t.app, batchId);
+    const rows = (await t.app.inject("/api/history")).json() as { id: number; summary: string }[];
+    expect(rows.find((r) => r.id === batchId)!.summary).toBe("3 個 Waypoint：是 1、不是 1、無法判斷 1");
+  });
+
   it("超過 10 km 拒絕並說明原因，不建 Batch、不碰手機", async () => {
     const t = setup(() => reply(false));
     const res = await start(t.app, body({ region: region(10_500, 2000) }));

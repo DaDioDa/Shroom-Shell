@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { sweepAreaColor, type ImportLineError, type Region, type Waypoint, type WaypointList } from "@shell/shared";
+import { sweepAreaColor, visibleSightings, type ImportLineError, type Region, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
 import { DiscoveryPanel } from "./DiscoveryPanel.js";
+import { HistoryPanel } from "./HistoryPanel.js";
 import { QuietSearchPanel } from "./QuietSearchPanel.js";
 import { TargetSearchPanel } from "./TargetSearchPanel.js";
+import { useNow } from "./useNow.js";
 import { useBatchView } from "./useBatchView.js";
 
 export function App() {
@@ -15,10 +17,12 @@ export function App() {
   const [newName, setNewName] = useState("");
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<ImportLineError[]>([]);
-  const [tab, setTab] = useState<"lists" | "quiet" | "discovery" | "target">("lists");
+  const [tab, setTab] = useState<"lists" | "quiet" | "discovery" | "target" | "history">("lists");
   const [region, setRegion] = useState<Region | null>(null);
   const [drawing, setDrawing] = useState(false);
+  const [showAllSightings, setShowAllSightings] = useState(false);
   const { view, follow } = useBatchView();
+  const now = useNow();
 
   const refreshLists = useCallback(async () => setLists(await api.lists()), []);
   useEffect(() => void refreshLists(), [refreshLists]);
@@ -106,7 +110,8 @@ export function App() {
     <div className="layout">
       <WaypointMap
         waypoints={waypoints}
-        sightings={view.sightings}
+        sightings={visibleSightings(view.sightings, now, showAllSightings)}
+        now={now}
         areas={areas}
         region={tab === "discovery" ? region : null}
         drawing={tab === "discovery" && drawing}
@@ -128,7 +133,14 @@ export function App() {
           <button className={tab === "target" ? "active" : ""} onClick={() => setTab("target")}>
             Target Search
           </button>
+          <button className={tab === "history" ? "active" : ""} onClick={() => setTab("history")}>
+            歷史
+          </button>
         </div>
+        <label className="muted">
+          <input type="checkbox" checked={showAllSightings} onChange={(e) => setShowAllSightings(e.target.checked)} />
+          地圖顯示全部 Sighting（含已過期）
+        </label>
         {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} onStarted={follow} />}
         {tab === "discovery" && (
           <DiscoveryPanel
@@ -143,6 +155,7 @@ export function App() {
             }}
           />
         )}
+        {tab === "history" && <HistoryPanel refreshKey={view.status} />}
         {tab === "target" && <TargetSearchPanel list={selected} view={view} onStarted={follow} />}
         {tab === "lists" && <>
         <h3>Waypoint List</h3>

@@ -1,4 +1,4 @@
-import type { CancelMode, Region, ImportResult, QueueSnapshot, QuietSearchParams, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
+import type { CancelMode, HistoryDetail, HistoryRow, ImportResult, QueueSnapshot, QuietSearchParams, Region, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -27,6 +27,9 @@ export const api = {
   quietStats: () => call<{ avgMsPerPoint: number | null }>("GET", "/api/quiet-stats"),
   startDiscovery: (p: { name: string; region: Region; radius: number; spacing: number; confirmed?: boolean }) =>
     call<{ batchId: number; listId: number }>("POST", "/api/batches/discovery", p),
+  history: () => call<HistoryRow[]>("GET", "/api/history"),
+  historyDetail: (id: number) => call<HistoryDetail>("GET", `/api/history/${id}`),
+  deleteBatch: (id: number) => call<void>("DELETE", `/api/batches/${id}`),
   addWaypoint: (listId: number, lat: number, lng: number) =>
     call<Waypoint>("POST", `/api/lists/${listId}/waypoints`, { lat, lng }),
   updateWaypoint: (id: number, patch: { label?: string; radius?: number | null; spotName?: string | null }) =>

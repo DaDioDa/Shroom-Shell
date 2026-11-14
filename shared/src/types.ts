@@ -113,3 +113,33 @@ export interface QuietSearchParams {
   /** Waypoint 沒有自己的半徑時用這個（公尺）。 */
   radius: number;
 }
+
+/** 歷史頁列表的一列（所有功能的 Batch）。 */
+export interface HistoryRow {
+  id: number;
+  feature: string;
+  listId: number;
+  listName: string | null;
+  status: string;
+  error: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+  summary: string;
+}
+
+/** 歷史頁裡一個 Waypoint 的結果。quiet 只有 Quiet Giant Search 的 Batch 才有。 */
+export interface HistoryWaypoint {
+  index: number;
+  waypointId: number;
+  label: string;
+  exitCode: number | null;
+  error: string | null;
+  runDir: string | null;
+  sightings: StoredSighting[];
+  quiet: { radius: number; result: QuietResult } | null;
+}
+
+export interface HistoryDetail extends HistoryRow {
+  params: unknown;
+  waypoints: HistoryWaypoint[];
+}

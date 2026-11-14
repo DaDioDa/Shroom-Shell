@@ -11,6 +11,13 @@ export interface CheckMark {
   tooltip: string;
 }
 
+/** 歷史分頁：Batch 當時走過的點。 */
+export interface HistoryPoint {
+  lat: number;
+  lng: number;
+  label: string;
+}
+
 /** 地圖上的 Sweep Area：以 (lat,lng) 為中心、邊長 2R 公尺的正方形。 */
 export interface SweepArea {
   lat: number;
@@ -31,6 +38,7 @@ export function WaypointMap({
   sightings = [],
   areas = [],
   checkMarks = [],
+  historyPoints = [],
   region = null,
   editor = null,
   centerRef,
@@ -43,6 +51,7 @@ export function WaypointMap({
   sightings?: StoredSighting[];
   areas?: SweepArea[];
   checkMarks?: CheckMark[];
+  historyPoints?: HistoryPoint[];
   /** Discovery 的 Region 外框。 */
   region?: Region | null;
   /** Region 編輯器（8 個把手、本體平移、格子預覽）；null＝不顯示（鎖定中或沒有 Region）。 */
@@ -67,6 +76,7 @@ export function WaypointMap({
   const sightingLayer = useRef<L.LayerGroup | null>(null);
   const areaLayer = useRef<L.LayerGroup | null>(null);
   const checkLayer = useRef<L.LayerGroup | null>(null);
+  const historyLayer = useRef<L.LayerGroup | null>(null);
 
   useEffect(() => {
     const m = L.map(el.current!).setView([25.033964, 121.564468], 13);
@@ -77,6 +87,7 @@ export function WaypointMap({
     m.on("click", (e: L.LeafletMouseEvent) => clickRef.current.onMapClick?.(e.latlng.lat, e.latlng.lng));
     areaLayer.current = L.layerGroup().addTo(m);
     regionLayer.current = L.layerGroup().addTo(m);
+    historyLayer.current = L.layerGroup().addTo(m);
     checkLayer.current = L.layerGroup().addTo(m);
     layer.current = L.layerGroup().addTo(m);
     sightingLayer.current = L.layerGroup().addTo(m);
@@ -120,6 +131,19 @@ export function WaypointMap({
         .addTo(g);
     }
   }, [sightings, now]);
+
+  useEffect(() => {
+    const g = historyLayer.current!;
+    g.clearLayers();
+    const pts: L.LatLngTuple[] = [];
+    for (const p of historyPoints) {
+      L.circleMarker([p.lat, p.lng], { radius: 5, color: "#495057", fillColor: "#fff", fillOpacity: 1, weight: 2, dashArray: "2 2" })
+        .bindTooltip(p.label)
+        .addTo(g);
+      pts.push([p.lat, p.lng]);
+    }
+    if (pts.length) map.current!.fitBounds(L.latLngBounds(pts), { maxZoom: 16, padding: [40, 40] });
+  }, [historyPoints]);
 
   useEffect(() => {
     const g = checkLayer.current!;

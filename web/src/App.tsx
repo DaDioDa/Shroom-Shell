@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { describePostcardCheck, featureName, planDiscovery, SLIDER_SPECS, sweepAreaColor, sweepRadius, visibleSightings, type ListFeature, type HistoryDetail, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { describePostcardCheck, featureName, planDiscovery, SLIDER_SPECS, sweepAreaColor, sweepRadius, tabLayers, visibleSightings, type ListFeature, type HistoryDetail, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
-import { WaypointMap, type CheckMark, type SweepArea } from "./Map.js";
+import { WaypointMap, type CheckMark, type HistoryPoint, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
 import { CellPanel, type CellInfo } from "./CellPanel.js";
 import { DiscoveryPanel } from "./DiscoveryPanel.js";
@@ -59,11 +59,23 @@ export function App() {
   // 目前分頁的 BatchView；歷史分頁沒有，用一個空的。
   const view = batchFeature ? views[batchFeature] : views["quiet-search"];
   const [tabSightings, setTabSightings] = useState<StoredSighting[]>([]);
-  // 指定菇菇分頁的 Sighting 來自 SQLite、只取該功能的；跟隨中的 Batch 有新 Sighting 或結束時重抓。
-  const targetView = views["target-search"];
+  // 無人巨菇、探索區域、指定菇菇分頁的 Sighting 來自 SQLite、只取該分頁功能的；跟隨中的 Batch 有新 Sighting 或結束時重抓。
+  const layers = tabLayers(tab);
+  const sightingFeature = layers.sightingFeature;
+  const sightingView = sightingFeature ? views[sightingFeature] : null;
+  const sightingCount = sightingView?.sightings.length ?? 0;
+  const sightingStatus = sightingView?.status ?? null;
   useEffect(() => {
-    void api.sightings("target-search").then(setTabSightings).catch(() => {});
-  }, [targetView.sightings.length, targetView.status]);
+    if (!sightingFeature) return setTabSightings([]);
+    let stale = false;
+    void api
+      .sightings(sightingFeature)
+      .then((r) => !stale && setTabSightings(r))
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [sightingFeature, sightingCount, sightingStatus]);
   // 底部抽屜是全域的：有在跑的 Batch 就顯示它，否則顯示目前分頁的。
   const drawerView = BATCH_FEATURES.map((f) => views[f]).find((v) => v.status === "running") ?? view;
 
@@ -121,8 +133,7 @@ export function App() {
     if (editing.mode === "edit") {
       await api.updateWaypoint(editing.w.id, patch);
     } else {
-      const created = await api.addWaypoint(selectedId, editing.lat, editing.lng, patch.spotName ?? undefined);
-      if (patch.label) await api.updateWaypoint(created.id, { label: patch.label });
+      await api.addWaypoint(selectedId, editing.lat, editing.lng, { label: patch.label, spotName: patch.spotName });
     }
     setEditing(null);
     await reload();
@@ -164,8 +175,9 @@ export function App() {
     : null;
 
   // 拉半徑時的預覽：選定清單的每個 Waypoint 周圍畫 2R 正方形，Waypoint 自帶半徑時用自己的。
+  // 預覽與結果疊畫（結果是實線方格、預覽是虛線藍框），有結果後拉 slider 仍有回饋。
   const previewRadius = tab === "quiet" ? quietRadius : tab === "target" ? targetRadius : null;
-  const showPreview = previewRadius !== null && !(tab === "quiet" && view.quietResults.length > 0);
+  const showPreview = layers.preview && previewRadius !== null;
   const previewAreas: SweepArea[] = showPreview ? waypoints.map((w) => ({ lat: w.lat, lng: w.lng, radius: sweepRadius(w, previewRadius), color: "preview" as const })) : [];
 
   const checkSource = tab === "history" ? (historyDetail?.waypoints.flatMap((w) => (w.check ? [w.check] : [])) ?? []) : tab === "postcard" ? view.checkResults : [];
@@ -175,8 +187,12 @@ export function App() {
     return [{ lat: o.point.lat, lng: o.point.lng, kind, tooltip: `${d.title}｜${d.message}` } as CheckMark];
   });
 
-  // 指定菇菇分頁畫該功能的 Sighting；歷史分頁畫點選那個 Batch 的 Sighting；其他分頁不畫。
-  const mapSightings = tab === "target" ? tabSightings : tab === "history" ? (historyDetail?.waypoints.flatMap((w) => w.sightings) ?? []) : [];
+  // 歷史分頁：當時走過的每個點（含失敗、指定菇菇），樣式與清單 Waypoint 不同。
+  const showHistoryPoints = layers.historyPoints;
+  const historyPoints = useMemo<HistoryPoint[]>(() => (showHistoryPoints ? (historyDetail?.waypoints.map((w) => ({ lat: w.point.lat, lng: w.point.lng, label: w.point.label || `點 ${w.index}` })) ?? []) : []), [showHistoryPoints, historyDetail]);
+
+  // 有 Sighting 的分頁畫該功能的 Sighting；歷史分頁畫點選那個 Batch 的 Sighting；其他分頁不畫。
+  const mapSightings = layers.historyPoints ? (historyDetail?.waypoints.flatMap((w) => w.sightings) ?? []) : tabSightings;
 
   const tabButton = (t: Tab, label: string) => (
     <button className={tab === t ? "active" : ""} onClick={() => (setTab(t), setSelectedCell(null))}>
@@ -194,6 +210,7 @@ export function App() {
         editor={editorState}
         centerRef={centerRef}
         checkMarks={checkMarks}
+        historyPoints={historyPoints}
         region={(tab === "discovery" || tab === "history") && !editorActive ? (discoveryInfo?.region ?? null) : null}
         onAreaClick={clickCell}
         onMapClick={feature && selectedId !== null && addMode ? addAt : undefined}

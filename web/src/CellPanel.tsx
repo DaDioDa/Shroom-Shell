@@ -53,8 +53,7 @@ export function CellPanel({ cell, onClose, onAdded }: { cell: CellInfo; onClose:
       if (isDuplicateWaypoint(existing, { lat: cell.lat, lng: cell.lng, radius: cell.radius })) {
         return setMessage({ ok: false, text: "已在清單裡" });
       }
-      const w = await api.addWaypoint(listId, cell.lat, cell.lng);
-      await api.updateWaypoint(w.id, { label: gridCellWaypointLabel(cell.regionName, cell.number - 1), radius: cell.radius });
+      await api.addWaypoint(listId, cell.lat, cell.lng, { radius: cell.radius, label: gridCellWaypointLabel(cell.regionName, cell.number - 1) });
       setMessage({ ok: true, text: "已加入清單" });
       onAdded?.();
     } catch (e) {

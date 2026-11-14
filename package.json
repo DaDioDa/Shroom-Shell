@@ -1,0 +1,11 @@
+{
+  "name": "pikmin-bloom-shell",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "server"
+  ],
+  "scripts": {
+    "teleport": "npm run teleport -w server --"
+  }
+}

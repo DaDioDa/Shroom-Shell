@@ -60,7 +60,7 @@ function parseImportText(text: string): { waypoints: ParsedWaypoint[]; errors: P
     if (!line) return;
     if (/^(https?:[/][/]|(maps[.]app[.])?goo[.]gl)/i.test(line)) {
       const r = parseMapsLink(line);
-      if (r.ok) waypoints.push({ lat: r.lat, lng: r.lng, label: "" });
+      if (r.ok) waypoints.push({ lat: r.lat, lng: r.lng, label: "", radius: null });
       else errors.push({ line: i + 1, text: raw, reason: r.reason });
       return;
     }
@@ -140,10 +140,10 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     const start = (db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM waypoints WHERE list_id = ?").get(id) as {
       n: number;
     }).n;
-    const insert = db.prepare("INSERT INTO waypoints (list_id, position, lat, lng, label) VALUES (?, ?, ?, ?, ?)");
+    const insert = db.prepare("INSERT INTO waypoints (list_id, position, lat, lng, label, radius) VALUES (?, ?, ?, ?, ?, ?)");
     const imported: Waypoint[] = waypoints.map((w, i) => {
-      const r = insert.run(id, start + i, w.lat, w.lng, w.label);
-      return { id: Number(r.lastInsertRowid), listId: id, position: start + i, lat: w.lat, lng: w.lng, label: w.label, radius: null, spotName: null };
+      const r = insert.run(id, start + i, w.lat, w.lng, w.label, w.radius);
+      return { id: Number(r.lastInsertRowid), listId: id, position: start + i, lat: w.lat, lng: w.lng, label: w.label, radius: w.radius, spotName: null };
     });
     const result: ImportResult = { imported, errors };
     return result;

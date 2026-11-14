@@ -27,6 +27,16 @@ describe("reduceBatchView", () => {
     expect(v.failures).toEqual([{ index: 2, error: "bad target" }]);
   });
 
+  it("quiet-result 依序累積（地圖正方形與結果卡片的來源）；新的 started 會清掉", () => {
+    const result = { quiet_area: false, verdict: false, reason: "有人在打", giants: [], claimed: { cell: 3, participant_count: null }, unread: 1 };
+    const events: BatchEvent[] = [
+      { type: "started", batchId: 1, total: 1 },
+      { type: "quiet-result", index: 1, waypointId: 9, radius: 250, result },
+    ];
+    expect(run(events).quietResults).toEqual([{ index: 1, waypointId: 9, radius: 250, result }]);
+    expect(run([...events, { type: "started", batchId: 2, total: 1 }]).quietResults).toEqual([]);
+  });
+
   it("finished 帶出狀態與錯誤；新的 started 會清掉上一輪", () => {
     const done = run([
       { type: "started", batchId: 1, total: 1 },

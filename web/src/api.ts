@@ -1,4 +1,4 @@
-import type { ImportResult, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
+import type { ImportResult, QuietSearchParams, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -18,6 +18,7 @@ export const api = {
   waypoints: (id: number) => call<Waypoint[]>("GET", `/api/lists/${id}/waypoints`),
   targets: () => call<string[]>("GET", "/api/targets"),
   startTargetSearch: (p: TargetSearchParams) => call<{ batchId: number }>("POST", "/api/batches/target-search", p),
+  startQuietSearch: (p: QuietSearchParams) => call<{ batchId: number }>("POST", "/api/batches/quiet-search", p),
   addWaypoint: (listId: number, lat: number, lng: number) =>
     call<Waypoint>("POST", `/api/lists/${listId}/waypoints`, { lat, lng }),
   updateWaypoint: (id: number, patch: { label?: string; radius?: number | null; spotName?: string | null }) =>

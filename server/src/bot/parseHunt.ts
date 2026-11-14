@@ -1,6 +1,6 @@
 import type { BotSighting } from "@shell/shared";
 
-function isSighting(v: unknown): v is BotSighting {
+export function isSighting(v: unknown): v is BotSighting {
   if (typeof v !== "object" || v === null) return false;
   const s = v as Record<string, unknown>;
   return (

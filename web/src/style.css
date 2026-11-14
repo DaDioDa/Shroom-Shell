@@ -15,3 +15,6 @@ html, body, #root { height: 100%; margin: 0; font-family: system-ui, sans-serif;
 .card .shots { display: flex; gap: 6px; margin-top: 6px; }
 .card .shots img { max-width: 140px; max-height: 140px; border: 1px solid #ddd; }
 .muted { color: #888; font-size: 12px; }
+.card.quiet.green { border-left: 6px solid #2f9e44; }
+.card.quiet.red { border-left: 6px solid #e03131; }
+.card.quiet.gray { border-left: 6px solid #868e96; }

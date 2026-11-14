@@ -64,6 +64,25 @@ describe("Waypoint List API", () => {
     await app.close();
   });
 
+  it("匯入：r=公尺 存成 Waypoint 的半徑，重開後還在；Maps 連結匯入的半徑為 null；r=0 該行列為錯誤", async () => {
+    const app = buildApp({ dataDir: dir });
+    const list = await createList(app, "L");
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/lists/${list.id}/import`,
+      payload: { text: "1,2 r=300 甲\n3,4 乙\nhttps://www.google.com/maps?q=5,6\n7,8 r=0 壞" },
+    });
+    const body = res.json() as ImportResult;
+    expect(body.imported.map((w) => [w.label, w.radius])).toEqual([["甲", 300], ["乙", null], ["", null]]);
+    expect(body.errors.map((e) => e.line)).toEqual([4]);
+    await app.close();
+
+    const again = buildApp({ dataDir: dir });
+    const wps = (await again.inject(`/api/lists/${list.id}/waypoints`)).json() as Waypoint[];
+    expect(wps.map((w) => w.radius)).toEqual([300, null, null]);
+    await again.close();
+  });
+
   it("刪除清單時一併刪掉 Waypoint", async () => {
     const app = buildApp({ dataDir: dir });
     const list = await createList(app, "L");

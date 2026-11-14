@@ -2,10 +2,11 @@ import { createReadStream, existsSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import type { FastifyInstance } from "fastify";
-import type { TargetSearchParams, Waypoint } from "@shell/shared";
+import type { QuietSearchParams, TargetSearchParams, Waypoint } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { BatchHub } from "./hub.js";
 import { createBatch, getBatch, listSightings, listTargets, rememberTargets } from "./store.js";
+import { runQuietSearch } from "./quietSearch.js";
 import { runTargetSearch, type BatchDeps } from "./targetSearch.js";
 
 function parseParams(body: unknown): TargetSearchParams | null {
@@ -37,7 +38,25 @@ export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<Bat
     return reply.code(201).send({ batchId });
   });
 
-  app.get("/api/targets", async () => listTargets(db));
+  app.post("/api/batches/quiet-search", async (req, reply) => {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    if (typeof b.listId !== "number" || typeof b.radius !== "number" || !(b.radius > 0)) {
+      return reply.code(400).send({ error: "需要 listId 與 radius > 0" });
+    }
+    const params: QuietSearchParams = { listId: b.listId, radius: b.radius };
+    if (db.prepare("SELECT 1 FROM waypoint_lists WHERE id = ?").get(params.listId) === undefined) {
+      return reply.code(404).send({ error: "找不到清單" });
+    }
+    const waypoints = db
+      .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius, spot_name AS spotName FROM waypoints WHERE list_id = ? ORDER BY position, id")
+      .all(params.listId) as unknown as Waypoint[];
+    const batchId = createBatch(db, "quiet-search", params);
+    hub.open(batchId);
+    void runQuietSearch(full, batchId, params, waypoints);
+    return reply.code(201).send({ batchId });
+  });
+
+  app.get("/api/targets",async () => listTargets(db));
 
   app.get<{ Params: { id: string } }>("/api/batches/:id", async (req, reply) => {
     return getBatch(db, Number(req.params.id)) ?? reply.code(404).send({ error: "找不到 Batch" });

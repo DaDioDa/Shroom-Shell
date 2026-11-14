@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { sweepAreaColor, visibleSightings, type ImportLineError, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap, type SweepArea } from "./Map.js";
+import { BatchDrawer } from "./BatchDrawer.js";
 import { HistoryPanel } from "./HistoryPanel.js";
 import { QuietSearchPanel } from "./QuietSearchPanel.js";
 import { TargetSearchPanel } from "./TargetSearchPanel.js";
@@ -186,6 +187,7 @@ export function App() {
         )}
         </>}
       </div>
+      <BatchDrawer onFollow={follow} />
     </div>
   );
 }

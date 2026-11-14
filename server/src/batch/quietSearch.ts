@@ -1,12 +1,9 @@
-import { basename } from "node:path";
 import { sweepRadius, type BotSighting, type QuietResult, type QuietSearchParams, type Waypoint } from "@shell/shared";
 import { parseQuietStdout } from "../bot/parseQuiet.js";
-import { failureReason, type BatchDeps } from "./targetSearch.js";
-import { recordWaypointRunRadius } from "./history.js";
-import { finishBatch, saveSighting, saveWaypointRun } from "./store.js";
+import { failureReason, type BatchFeature } from "./runBatch.js";
+import { saveSighting } from "./store.js";
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** 功能只負責「這一點跑什麼指令」：`quiet --radius <R>`（`--runs-dir` 由 runner 加）。 */
 export function quietArgs(params: QuietSearchParams, waypoint: Waypoint): string[] {
@@ -32,56 +29,21 @@ export function interpretQuietRun(run: { exitCode: number; stdout: string; stder
   return parsed;
 }
 
-/** 依 Waypoint 順序逐點：Teleport → 等待 → quiet。結束一律 stop。 */
-export async function runQuietSearch(
-  deps: BatchDeps,
-  batchId: number,
-  params: QuietSearchParams,
-  waypoints: Waypoint[],
-): Promise<void> {
-  const total = waypoints.length;
-  deps.hub.emit(batchId, { type: "started", batchId, total });
-  let error: string | null = null;
-  try {
-    for (const [i, w] of waypoints.entries()) {
-      const index = i + 1;
-      deps.hub.emit(batchId, { type: "progress", index, total, waypointId: w.id, label: w.label });
-      await deps.device.teleport({ lat: w.lat, lng: w.lng });
-      await sleep(deps.waitMs);
-      const stderr: string[] = [];
-      const run = await deps.bot.run({
-        command: "quiet",
-        args: quietArgs(params, w),
-        runsDir: deps.runsDir,
-        onStderrLine: (line) => {
-          stderr.push(line);
-          deps.hub.emit(batchId, { type: "stderr", index, line });
-        },
-      });
+/** Quiet Giant Search：每點 `quiet`；exit 0／1／2 都是 bot 給的答案（2＝無法判斷），由 interpretQuietRun 解讀。 */
+export function quietSearchFeature(params: QuietSearchParams): BatchFeature {
+  return {
+    plan: (w) => ({ command: "quiet", args: quietArgs(params, w) }),
+    okExitCodes: [0, 1, 2],
+    interpret({ deps, batchId, waypoint, index, result: run, stderr, runName }) {
       const result = interpretQuietRun({ exitCode: run.exitCode, stdout: run.stdout, stderr, runDir: run.runDir });
-      const runName = run.runDir ? basename(run.runDir) : null;
       const giants: BotSighting[] = result.verdict === null ? [] : result.giants;
       for (const g of giants) {
-        const saved = saveSighting(deps.db, batchId, w.id, g, runName, deps.runsDir);
+        const saved = saveSighting(deps.db, batchId, waypoint.id, g, runName, deps.runsDir);
         deps.hub.emit(batchId, { type: "sighting", sighting: saved });
       }
-      deps.hub.emit(batchId, { type: "quiet-result", index, waypointId: w.id, radius: sweepRadius(w, params.radius), result });
-      saveWaypointRun(deps.db, {
-        batchId, waypointId: w.id, index, exitCode: run.exitCode, result,
-        runDir: runName, error: result.verdict === null ? result.reason : null,
-      });
-      recordWaypointRunRadius(deps.db, batchId, index, sweepRadius(w, params.radius));
-    }
-  } catch (e) {
-    error = errorMessage(e);
-  }
-  // 不論怎麼結束都恢復真實 GPS。
-  try {
-    await deps.device.stop();
-  } catch (e) {
-    error ??= "恢復真實 GPS 失敗：" + errorMessage(e);
-  }
-  const status = error ? "failed" : "done";
-  finishBatch(deps.db, batchId, status, error);
-  deps.hub.emit(batchId, error ? { type: "finished", status, error } : { type: "finished", status });
+      deps.hub.emit(batchId, { type: "quiet-result", index, waypointId: waypoint.id, radius: sweepRadius(waypoint, params.radius), result });
+      // 這點實際用的半徑一起存進 result_json，歷史頁才還原得出來（Waypoint 半徑之後可能被改）。
+      return { result: { ...result, radius: sweepRadius(waypoint, params.radius) }, error: result.verdict === null ? result.reason : null, report: false };
+    },
+  };
 }

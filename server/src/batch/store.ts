@@ -1,4 +1,4 @@
-import type { BotSighting, StoredSighting } from "@shell/shared";
+import type { BatchStatus, BotSighting, StoredSighting } from "@shell/shared";
 import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Db } from "../db/database.js";
@@ -46,10 +46,10 @@ const toStored = (r: SightingRow, runsDir: string): StoredSighting => ({
   postcardUrl: runFileUrl(runsDir, r.run_dir, r.postcard),
 });
 
-export function createBatch(db: Db, feature: string, params: { listId: number }): number {
+export function createBatch(db: Db, feature: string, params: { listId: number }, status: BatchStatus = "queued"): number {
   const r = db
-    .prepare("INSERT INTO batches (list_id, feature, params, status, created_at) VALUES (?, ?, ?, 'running', ?)")
-    .run(params.listId, feature, JSON.stringify(params), new Date().toISOString());
+    .prepare("INSERT INTO batches (list_id, feature, params, status, created_at) VALUES (?, ?, ?, ?, ?)")
+    .run(params.listId, feature, JSON.stringify(params), status, new Date().toISOString());
   return Number(r.lastInsertRowid);
 }
 
@@ -99,14 +99,18 @@ export function listTargets(db: Db): string[] {
 
 export function saveWaypointRun(
   db: Db,
-  run: { batchId: number; waypointId: number; index: number; exitCode: number; result: unknown; runDir: string | null; error: string | null },
+  run: { batchId: number; waypointId: number; index: number; exitCode: number | null; result: unknown; runDir: string | null; error: string | null },
 ): void {
   db.prepare(
     "INSERT INTO waypoint_runs (batch_id, waypoint_id, idx, exit_code, result_json, run_dir, error) VALUES (?, ?, ?, ?, ?, ?, ?)",
   ).run(run.batchId, run.waypointId, run.index, run.exitCode, JSON.stringify(run.result), run.runDir, run.error);
 }
 
-export function finishBatch(db: Db, batchId: number, status: "done" | "failed", error: string | null): void {
+export function setBatchStatus(db: Db, batchId: number, status: BatchStatus): void {
+  db.prepare("UPDATE batches SET status = ? WHERE id = ?").run(status, batchId);
+}
+
+export function finishBatch(db: Db, batchId: number, status: BatchStatus, error: string | null): void {
   db.prepare("UPDATE batches SET status = ?, error = ?, finished_at = ? WHERE id = ?").run(
     status, error, new Date().toISOString(), batchId,
   );

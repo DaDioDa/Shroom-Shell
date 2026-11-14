@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdirSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -11,6 +11,8 @@ export interface BotRunRequest {
   runsDir: string;
   /** bot 每印一行 stderr 就呼叫一次（不含換行）。 */
   onStderrLine?: (line: string) => void;
+  /** abort 時立刻 kill bot 的程序（強制停止）。 */
+  signal?: AbortSignal;
 }
 
 export interface BotRunResult {
@@ -19,6 +21,8 @@ export interface BotRunResult {
   stdout: string;
   /** 這次執行建立的 run 資料夾（絕對路徑）；找不到就是 null。 */
   runDir: string | null;
+  /** true = 被 signal 強制結束，不是 bot 自己收尾。 */
+  killed?: boolean;
 }
 
 /** 真 bot 與假 bot 共用的介面。 */
@@ -31,6 +35,10 @@ export const DEFAULT_BOT_REPO = "F:\\pikmin_bloom_bot";
 export interface RealBotOptions {
   /** bot repo 路徑，預設取環境變數 BOT_REPO，再退回 DEFAULT_BOT_REPO。 */
   repoDir?: string;
+  /** 測試用：換掉 `.venv` 的 python。 */
+  executable?: string;
+  /** 測試用：換掉 `-m mushroom_sweep`。 */
+  baseArgs?: string[];
 }
 
 function listDirs(dir: string): Set<string> {
@@ -44,18 +52,21 @@ function listDirs(dir: string): Set<string> {
 /** 在 bot repo 根目錄用它的 `.venv` 執行 `python -m mushroom_sweep <指令>`。 */
 export class RealBotRunner implements BotRunner {
   private readonly repoDir: string;
+  private readonly executable: string;
+  private readonly baseArgs: string[];
   constructor(opts: RealBotOptions = {}) {
     this.repoDir = opts.repoDir ?? process.env.BOT_REPO ?? DEFAULT_BOT_REPO;
+    this.executable = opts.executable ?? join(this.repoDir, ".venv", "Scripts", "python.exe");
+    this.baseArgs = opts.baseArgs ?? ["-m", "mushroom_sweep"];
   }
 
   run(req: BotRunRequest): Promise<BotRunResult> {
     mkdirSync(req.runsDir, { recursive: true });
     const before = listDirs(req.runsDir);
-    const python = join(this.repoDir, ".venv", "Scripts", "python.exe");
-    const args = ["-m", "mushroom_sweep", req.command, ...req.args, "--runs-dir", req.runsDir];
+    const args = [...this.baseArgs, req.command, ...req.args, "--runs-dir", req.runsDir];
 
     return new Promise((resolve, reject) => {
-      const child = spawn(python, args, {
+      const child = spawn(this.executable, args, {
         cwd: this.repoDir,
         windowsHide: true,
         env: { ...process.env, PYTHONIOENCODING: "utf-8" },
@@ -69,13 +80,35 @@ export class RealBotRunner implements BotRunner {
         pending = lines.pop() ?? "";
         for (const l of lines) req.onStderrLine?.(l);
       });
+      let killed = false;
+      const kill = () => {
+        killed = true;
+        killTree(child.pid);
+      };
+      if (req.signal?.aborted) kill();
+      else req.signal?.addEventListener("abort", kill, { once: true });
       child.on("error", reject);
       child.on("close", (code) => {
+        req.signal?.removeEventListener("abort", kill);
         if (pending) req.onStderrLine?.(pending);
         const created = [...listDirs(req.runsDir)].filter((n) => !before.has(n)).sort();
         const runDir = created.length ? join(req.runsDir, created[created.length - 1]!) : null;
-        resolve({ exitCode: code ?? 2, stdout, runDir });
+        resolve({ exitCode: code ?? 2, stdout, runDir, killed });
       });
     });
+  }
+}
+
+/** 連同子程序一起殺掉（bot 底下還會開 adb 等）。 */
+function killTree(pid: number | undefined): void {
+  if (pid === undefined) return;
+  if (process.platform === "win32") {
+    execFile("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true }, () => {});
+  } else {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // 已經結束
+    }
   }
 }

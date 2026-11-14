@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { DeviceLostError } from "./device.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -24,11 +25,19 @@ export class Adb {
 
   async shell(command: string, timeoutMs = 15_000): Promise<string> {
     const args = [...(this.serial ? ["-s", this.serial] : []), "shell", command];
-    const { stdout } = await execFileAsync(this.adbPath, args, {
-      timeout: timeoutMs,
-      windowsHide: true,
-      maxBuffer: 16 * 1024 * 1024,
-    });
-    return stdout;
+    try {
+      const { stdout } = await execFileAsync(this.adbPath, args, {
+        timeout: timeoutMs,
+        windowsHide: true,
+        maxBuffer: 16 * 1024 * 1024,
+      });
+      return stdout;
+    } catch (e) {
+      const text = `${(e as { stderr?: string }).stderr ?? ""}${(e as Error).message}`;
+      if (/no devices\/emulators found|device offline|device '.*' not found|device unauthorized|more than one device/i.test(text)) {
+        throw new DeviceLostError(`找不到手機：${text.trim().split(/\r?\n/)[0]}`);
+      }
+      throw e;
+    }
   }
 }

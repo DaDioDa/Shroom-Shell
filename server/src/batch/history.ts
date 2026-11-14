@@ -25,7 +25,6 @@ interface RunRow {
   result_json: string | null;
   run_dir: string | null;
   error: string | null;
-  radius: number | null;
   wp_label: string | null;
   wp_lat: number | null;
   wp_lng: number | null;
@@ -43,15 +42,10 @@ function parseJson<T>(text: string | null): T | null {
   }
 }
 
-/** Quiet 每點實際用的半徑存在 waypoint_runs.radius；舊資料沒有就退回 Waypoint 目前的半徑或 Batch 預設。 */
-export function recordWaypointRunRadius(db: Db, batchId: number, index: number, radius: number): void {
-  db.prepare("UPDATE waypoint_runs SET radius = ? WHERE batch_id = ? AND idx = ?").run(radius, batchId, index);
-}
-
 function loadRuns(db: Db, batchId: number): RunRow[] {
   return db
     .prepare(
-      `SELECT r.idx, r.waypoint_id, r.exit_code, r.result_json, r.run_dir, r.error, r.radius,
+      `SELECT r.idx, r.waypoint_id, r.exit_code, r.result_json, r.run_dir, r.error,
               w.label AS wp_label, w.lat AS wp_lat, w.lng AS wp_lng, w.radius AS wp_radius
        FROM waypoint_runs r LEFT JOIN waypoints w ON w.id = r.waypoint_id
        WHERE r.batch_id = ? ORDER BY r.idx`,
@@ -98,8 +92,10 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
   const params = parseJson<{ radius?: number }>(b.params);
   const sightings = listSightings(db, id, runsDir);
   const waypoints = loadRuns(db, id).map((r): HistoryWaypoint => {
-    const result = b.feature === "quiet-search" ? parseJson<QuietResult>(r.result_json) : null;
-    const radius = r.radius ?? sweepRadius({ radius: r.wp_radius }, params?.radius ?? 0);
+    // result_json 是 QuietResult 加上這點用的半徑；舊資料沒有半徑就退回 Waypoint 目前的半徑或 Batch 預設。
+    const stored = b.feature === "quiet-search" ? parseJson<QuietResult & { radius?: number }>(r.result_json) : null;
+    const { radius: storedRadius, ...result } = stored ?? ({} as QuietResult & { radius?: number });
+    const radius = storedRadius ?? sweepRadius({ radius: r.wp_radius }, params?.radius ?? 0);
     return {
       index: r.idx,
       waypointId: r.waypoint_id,
@@ -108,7 +104,7 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
       error: r.error,
       runDir: r.run_dir,
       sightings: sightings.filter((s) => s.waypointId === r.waypoint_id),
-      quiet: result ? { radius, result } : null,
+      quiet: stored ? { radius, result: result as QuietResult } : null,
     };
   });
   return { ...toRow(db, b), params, waypoints };

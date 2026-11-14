@@ -20,6 +20,8 @@ export interface FakeReply {
   files?: Record<string, Buffer | string>;
   /** true = 模擬「連 run 資料夾都沒建」。 */
   noRunDir?: boolean;
+  /** true = 模擬長時間執行的 bot：卡住直到被 kill（signal abort）。 */
+  hang?: boolean;
 }
 
 export type FakeScript = (req: BotRunRequest, callIndex: number) => FakeReply | Promise<FakeReply>;
@@ -27,12 +29,22 @@ export type FakeScript = (req: BotRunRequest, callIndex: number) => FakeReply | 
 /** 依 cli.md 回放 stdout、stderr、exit code 的假 bot，並記下每次呼叫。 */
 export class FakeBotRunner implements BotRunner {
   readonly calls: BotRunRequest[] = [];
+  /** 被強制 kill 的呼叫編號（從 1 起算）。 */
+  readonly killed: number[] = [];
   constructor(private readonly script: FakeScript) {}
 
   async run(req: BotRunRequest): Promise<BotRunResult> {
     const index = this.calls.length;
     this.calls.push({ command: req.command, args: [...req.args], runsDir: req.runsDir });
     const reply = await this.script(req, index);
+    if (reply.hang) {
+      await new Promise<void>((resolve) => {
+        if (req.signal?.aborted) return resolve();
+        req.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      this.killed.push(index + 1);
+      return { exitCode: 1, stdout: "", runDir: null, killed: true };
+    }
     let runDir: string | null = null;
     if (!reply.noRunDir) {
       runDir = join(req.runsDir, `fake-run-${String(index + 1).padStart(3, "0")}`);
@@ -50,11 +62,16 @@ export class FakeDevice implements Device {
   current: LatLng | null = null;
   /** 設了就讓 teleport 丟這個錯。 */
   failWith: Error | null = null;
+  /** otherActiveMockApps 要回報的套件。 */
+  otherMockApps: string[] = [];
 
   async teleport(to: LatLng): Promise<void> {
     this.log.push(`teleport ${to.lat},${to.lng}`);
     if (this.failWith) throw this.failWith;
     this.current = to;
+  }
+  async otherActiveMockApps(): Promise<string[]> {
+    return this.otherMockApps;
   }
   async stop(): Promise<void> {
     this.log.push("stop");

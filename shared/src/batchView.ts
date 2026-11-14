@@ -17,9 +17,11 @@ export interface BatchView {
   label: string;
   stderr: string[];
   sightings: StoredSighting[];
-  failures: { index: number; error: string }[];
+  failures: { index: number; error: string; screenshotUrl?: string }[];
   quietResults: QuietOutcome[];
   error: string | null;
+  /** 排隊中時，前面還有幾個要等（1＝下一個就輪到）。 */
+  queuePosition: number | null;
 }
 
 export const initialBatchView: BatchView = {
@@ -33,10 +35,13 @@ export const initialBatchView: BatchView = {
   failures: [],
   quietResults: [],
   error: null,
+  queuePosition: null,
 };
 
 export function reduceBatchView(v: BatchView, e: BatchEvent): BatchView {
   switch (e.type) {
+    case "queued":
+      return { ...initialBatchView, batchId: e.batchId, status: "queued", queuePosition: e.position };
     case "started":
       return { ...initialBatchView, batchId: e.batchId, status: "running", total: e.total };
     case "progress":
@@ -46,7 +51,10 @@ export function reduceBatchView(v: BatchView, e: BatchEvent): BatchView {
     case "sighting":
       return { ...v, sightings: [...v.sightings, e.sighting] };
     case "waypoint-failed":
-      return { ...v, failures: [...v.failures, { index: e.index, error: e.error }] };
+      return {
+        ...v,
+        failures: [...v.failures, { index: e.index, error: e.error, ...(e.screenshotUrl ? { screenshotUrl: e.screenshotUrl } : {}) }],
+      };
     case "quiet-result":
       return { ...v, quietResults: [...v.quietResults, { index: e.index, waypointId: e.waypointId, radius: e.radius, result: e.result }] };
     case "finished":

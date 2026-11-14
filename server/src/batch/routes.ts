@@ -2,13 +2,15 @@ import { createReadStream, existsSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import type { FastifyInstance } from "fastify";
-import type { QuietSearchParams, TargetSearchParams, Waypoint } from "@shell/shared";
+import type { CancelMode, QuietSearchParams, TargetSearchParams, Waypoint } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { BatchHub } from "./hub.js";
-import { createBatch, getBatch, listSightings, listTargets, rememberTargets } from "./store.js";
+import { BatchQueue } from "./queue.js";
+import { runBatch, type BatchDeps, type BatchFeature } from "./runBatch.js";
+import { createBatch, finishBatch, getBatch, listSightings, listTargets, rememberTargets } from "./store.js";
+import { quietSearchFeature } from "./quietSearch.js";
+import { targetSearchFeature } from "./targetSearch.js";
 import { deleteBatch, getHistory, listHistory } from "./history.js";
-import { runQuietSearch } from "./quietSearch.js";
-import { runTargetSearch, type BatchDeps } from "./targetSearch.js";
 
 function parseParams(body: unknown): TargetSearchParams | null {
   const b = (body ?? {}) as Record<string, unknown>;
@@ -22,6 +24,11 @@ function parseParams(body: unknown): TargetSearchParams | null {
 export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<BatchDeps, "hub" | "db">): void {
   const hub = new BatchHub();
   const full: BatchDeps = { ...deps, db, hub };
+  const queue = new BatchQueue();
+  // 上次伺服器結束時還沒跑完的 Batch 不會再繼續；標成失敗，免得永遠卡在排隊／執行中。
+  db.prepare("UPDATE batches SET status = 'failed', error = ?, finished_at = ? WHERE status IN ('queued', 'running')").run(
+    "伺服器重新啟動，這個 Batch 被中斷", new Date().toISOString(),
+  );
 
   app.post("/api/batches/target-search", async (req, reply) => {
     const body = parseParams(req.body);
@@ -34,9 +41,36 @@ export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<Bat
       .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius FROM waypoints WHERE list_id = ? ORDER BY position, id")
       .all(body.listId) as unknown as Waypoint[];
     const batchId = createBatch(db, "target-search", body);
-    hub.open(batchId);
-    void runTargetSearch(full, batchId, body, waypoints);
+    start(batchId, "target-search", body.listId, targetSearchFeature(body), waypoints);
     return reply.code(201).send({ batchId });
+  });
+
+  /** 所有功能共用：排進同一個佇列，輪到時交給 runBatch。 */
+  function start(batchId: number, name: string, listId: number, feature: BatchFeature, waypoints: Waypoint[]) {
+    const listName = (db.prepare("SELECT name FROM waypoint_lists WHERE id = ?").get(listId) as { name: string }).name;
+    hub.open(batchId);
+    const position = queue.enqueue({
+      item: { batchId, feature: name, listId, listName },
+      run: (control) => runBatch(full, batchId, feature, waypoints, control),
+      onRemoved: () => cancelQueued(batchId),
+    });
+    if (position > 0) hub.emit(batchId, { type: "queued", batchId, position });
+  }
+
+  function cancelQueued(batchId: number) {
+    finishBatch(db, batchId, "cancelled", "在排隊時被移出佇列");
+    hub.emit(batchId, { type: "finished", status: "cancelled", error: "在排隊時被移出佇列" });
+  }
+
+  app.get("/api/queue", async () => queue.snapshot());
+
+  app.post<{ Params: { id: string } }>("/api/batches/:id/cancel", async (req, reply) => {
+    const id = Number(req.params.id);
+    const mode = ((req.body ?? {}) as { mode?: unknown }).mode ?? "after-waypoint";
+    if (mode !== "after-waypoint" && mode !== "force") return reply.code(400).send({ error: "mode 只能是 after-waypoint 或 force" });
+    if (!getBatch(db, id)) return reply.code(404).send({ error: "找不到 Batch" });
+    if (queue.cancel(id, mode as CancelMode) === "unknown") return reply.code(409).send({ error: "這個 Batch 已經結束" });
+    return { ok: true };
   });
 
   app.post("/api/batches/quiet-search", async (req, reply) => {
@@ -52,8 +86,7 @@ export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<Bat
       .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius, spot_name AS spotName FROM waypoints WHERE list_id = ? ORDER BY position, id")
       .all(params.listId) as unknown as Waypoint[];
     const batchId = createBatch(db, "quiet-search", params);
-    hub.open(batchId);
-    void runQuietSearch(full, batchId, params, waypoints);
+    start(batchId, "quiet-search", params.listId, quietSearchFeature(params), waypoints);
     return reply.code(201).send({ batchId });
   });
 
@@ -70,7 +103,7 @@ export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<Bat
     return reply.code(204).send();
   });
 
-  app.get("/api/targets",async () => listTargets(db));
+  app.get("/api/targets", async () => listTargets(db));
 
   app.get<{ Params: { id: string } }>("/api/batches/:id", async (req, reply) => {
     return getBatch(db, Number(req.params.id)) ?? reply.code(404).send({ error: "找不到 Batch" });

@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
-import { describePostcardCheck, featureName, SLIDER_SPECS, sweepAreaColor, sweepRadius, visibleSightings, type ListFeature, type HistoryDetail, type Region, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { describePostcardCheck, featureName, planDiscovery, SLIDER_SPECS, sweepAreaColor, sweepRadius, visibleSightings, type ListFeature, type HistoryDetail, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap, type CheckMark, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
 import { CellPanel, type CellInfo } from "./CellPanel.js";
 import { DiscoveryPanel } from "./DiscoveryPanel.js";
+import { useDiscoveryEditor } from "./useDiscoveryEditor.js";
+import type { RegionEditorState } from "./regionEditorLayer.js";
 import { ListManager } from "./ListManager.js";
 import { HistoryPanel } from "./HistoryPanel.js";
 import { PostcardCheckPanel } from "./PostcardCheckPanel.js";
@@ -32,8 +34,8 @@ export function App() {
   const [targetRadius, setTargetRadius] = useStoredSlider("slider.radius.target-search", SLIDER_SPECS.radius);
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [tab, setTab] = useState<Tab>("quiet");
-  const [region, setRegion] = useState<Region | null>(null);
-  const [drawing, setDrawing] = useState(false);
+  const editor = useDiscoveryEditor();
+  const centerRef = useRef<(() => { lat: number; lng: number }) | null>(null);
   const [showAllSightings, setShowAllSightings] = useState(false);
   const { views, follow } = useBatchViews();
   const now = useNow();
@@ -156,6 +158,11 @@ export function App() {
     setSelectedCell({ regionName: discoveryInfo.name, number: o.index, lat: o.point.lat, lng: o.point.lng, radius: o.radius, verdict: o.result.verdict, reason: o.result.reason });
   };
   const discoveryBusy = views.discovery.status === "running" || views.discovery.status === "queued";
+  // 探索區域分頁：排隊或執行中鎖住（不能拖）；沒在跑且使用者在調 Region（或還沒有可看的結果）時顯示編輯器與預覽，否則顯示結果。
+  const editorActive = tab === "discovery" && !discoveryBusy && editor.region !== null && (editor.editing || discoveryInfo === null);
+  const editorState: RegionEditorState | null = editorActive
+    ? { region: editor.region!, spacingM: editor.spacing, radiusM: editor.radius, bad: !planDiscovery({ region: editor.region!, spacingM: editor.spacing, avgMsPerPoint: null }).ok, onChange: editor.setRegion }
+    : null;
 
   // 拉半徑時的預覽：選定清單的每個 Waypoint 周圍畫 2R 正方形，Waypoint 自帶半徑時用自己的。
   const previewRadius = tab === "quiet" ? quietRadius : tab === "target" ? targetRadius : null;
@@ -184,12 +191,12 @@ export function App() {
         waypoints={mapWaypoints}
         sightings={visibleSightings(mapSightings, now, showAllSightings)}
         now={now}
-        areas={[...areas, ...previewAreas]}
+        areas={editorActive ? previewAreas : [...areas, ...previewAreas]}
+        editor={editorState}
+        centerRef={centerRef}
         checkMarks={checkMarks}
-        region={tab === "discovery" ? (region ?? discoveryInfo?.region ?? null) : tab === "history" ? (discoveryInfo?.region ?? null) : null}
-        drawing={tab === "discovery" && drawing && !discoveryBusy}
+        region={(tab === "discovery" || tab === "history") && !editorActive ? (discoveryInfo?.region ?? null) : null}
         onAreaClick={clickCell}
-        onRegionDrawn={(r) => (setRegion(r), setDrawing(false))}
         onMapClick={feature && selectedId !== null ? addAt : undefined}
         onMarkerEdit={edit}
         onMarkerDelete={removeWaypoint}
@@ -224,7 +231,7 @@ export function App() {
         {selectedCell && (tab === "discovery" || tab === "history") && <CellPanel cell={selectedCell} onClose={() => setSelectedCell(null)} onAdded={() => void refreshLists("quiet-search")} />}
         {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} radius={quietRadius} onRadiusChange={setQuietRadius} onStarted={(id) => follow("quiet-search", id)} />}
         {tab === "discovery" && (
-          <DiscoveryPanel region={region} drawing={drawing} onDraw={() => setDrawing(true)} view={view} onStarted={(batchId) => (setRegion(null), follow("discovery", batchId))} />
+          <DiscoveryPanel editor={editor} centerRef={centerRef} hasResult={discoveryInfo !== null} view={view} onStarted={(batchId) => (editor.setEditing(false), follow("discovery", batchId))} />
         )}
         {tab === "postcard" && <PostcardCheckPanel list={selected} waypoints={waypoints} view={view} onStarted={(id) => follow("postcard-check", id)} />}
         {tab === "history" && <HistoryPanel refreshKey={BATCH_FEATURES.map((f) => views[f].status).join()} onDetail={setHistoryDetail} />}

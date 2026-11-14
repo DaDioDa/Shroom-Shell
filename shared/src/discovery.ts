@@ -23,14 +23,21 @@ export function regionSizeKm(r: Region): { widthKm: number; heightKm: number } {
   };
 }
 
+/** Region 依間距切出的欄數與列數（ceil，至少 1）。 */
+export function gridSize(r: Region, spacingM: number): { cols: number; rows: number } {
+  const { widthKm, heightKm } = regionSizeKm(r);
+  return {
+    cols: Math.max(1, Math.ceil((widthKm * 1000) / spacingM - 1e-9)),
+    rows: Math.max(1, Math.ceil((heightKm * 1000) / spacingM - 1e-9)),
+  };
+}
+
 /**
  * 把 Region 切成 ceil(邊長 / 間距) 欄 × 列的等寬格子，每格取中心當 Waypoint，所以點一定在 Region 內。
  * 蛇形：從南排開始，南排由西往東，下一排由東往西，依此類推，換排時不用跳回去。
  */
 export function gridPoints(r: Region, spacingM: number): { lat: number; lng: number }[] {
-  const { widthKm, heightKm } = regionSizeKm(r);
-  const cols = Math.max(1, Math.ceil((widthKm * 1000) / spacingM - 1e-9));
-  const rows = Math.max(1, Math.ceil((heightKm * 1000) / spacingM - 1e-9));
+  const { cols, rows } = gridSize(r, spacingM);
   const points: { lat: number; lng: number }[] = [];
   for (let row = 0; row < rows; row++) {
     const lat = r.south + ((row + 0.5) * (r.north - r.south)) / rows;

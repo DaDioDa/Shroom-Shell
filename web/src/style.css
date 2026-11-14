@@ -34,3 +34,15 @@ html, body, #root { height: 100%; margin: 0; font-family: system-ui, sans-serif;
 .slider .row { display: flex; gap: 8px; align-items: center; }
 .slider input[type="range"] { flex: 1; }
 .slider input[type="number"] { width: 5em; }
+
+.region-handle { background: #fff; border: 2px solid #1971c2; border-radius: 2px; box-sizing: border-box; }
+.region-handle.nw, .region-handle.se { cursor: nwse-resize; }
+.region-handle.ne, .region-handle.sw { cursor: nesw-resize; }
+.region-handle.n, .region-handle.s { cursor: ns-resize; border-radius: 6px; }
+.region-handle.e, .region-handle.w { cursor: ew-resize; border-radius: 6px; }
+.region-size { background: #1971c2; color: #fff; font-size: 12px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -130%); display: inline-block; }
+.region-size.bad { background: #e03131; }
+.region-start { background: #2f9e44; color: #fff; font-size: 11px; padding: 0 4px; border-radius: 3px; white-space: nowrap; }
+.region-stats { margin: 8px 0; }
+.region-big { font-size: 22px; font-weight: bold; margin: 4px 0; }
+.confirm { border: 1px solid #f08c00; background: #fff9db; padding: 8px; border-radius: 6px; }

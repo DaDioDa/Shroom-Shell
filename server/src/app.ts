@@ -5,7 +5,7 @@ import {
   parseWaypointText,
   type ParsedWaypoint,
   type ParseError,
-  type ImportResult, type Waypoint, type WaypointList } from "@shell/shared";
+  isListFeature, type ImportResult, type Waypoint, type WaypointList } from "@shell/shared";
 import { openDb } from "./db/database.js";
 import { registerBatchRoutes } from "./batch/routes.js";
 import { RealBotRunner, type BotRunner } from "./bot/runner.js";
@@ -88,24 +88,28 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
   const getList = (id: number) =>
     db
       .prepare(
-        `SELECT l.id, l.name, (SELECT COUNT(*) FROM waypoints w WHERE w.list_id = l.id) AS waypointCount
+        `SELECT l.id, l.name, l.feature, (SELECT COUNT(*) FROM waypoints w WHERE w.list_id = l.id) AS waypointCount
          FROM waypoint_lists l WHERE l.id = ?`,
       )
       .get(id) as unknown as WaypointList;
 
-  app.get("/api/lists", async () =>
-    db
+  app.get<{ Querystring: { feature?: string } }>("/api/lists", async (req, reply) => {
+    const feature = req.query.feature;
+    if (!isListFeature(feature)) return reply.code(400).send({ error: "feature 必填，要是 postcard-check、quiet-search 或 target-search" });
+    return db
       .prepare(
-        `SELECT l.id, l.name, (SELECT COUNT(*) FROM waypoints w WHERE w.list_id = l.id) AS waypointCount
-         FROM waypoint_lists l ORDER BY l.id`,
+        `SELECT l.id, l.name, l.feature, (SELECT COUNT(*) FROM waypoints w WHERE w.list_id = l.id) AS waypointCount
+         FROM waypoint_lists l WHERE l.feature = ? ORDER BY l.id`,
       )
-      .all() as unknown as WaypointList[],
-  );
+      .all(feature) as unknown as WaypointList[];
+  });
 
   app.post("/api/lists", async (req, reply) => {
     const name = parseName(req.body);
     if (!name) return reply.code(400).send({ error: "name 必填" });
-    const { lastInsertRowid } = db.prepare("INSERT INTO waypoint_lists (name) VALUES (?)").run(name);
+    const feature = (req.body as { feature?: unknown } | null)?.feature;
+    if (!isListFeature(feature)) return reply.code(400).send({ error: "feature 必填，要是 postcard-check、quiet-search 或 target-search" });
+    const { lastInsertRowid } = db.prepare("INSERT INTO waypoint_lists (name, feature) VALUES (?, ?)").run(name, feature);
     return reply.code(201).send(getList(Number(lastInsertRowid)));
   });
 

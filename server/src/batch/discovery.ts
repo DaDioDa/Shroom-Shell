@@ -9,7 +9,7 @@ export const discoveryListName = (regionName: string) => `Discovery：${regionNa
 export function collectDiscovered(db: Db, regionName: string, point: { lat: number; lng: number }, radius: number): void {
   const name = discoveryListName(regionName);
   const found = db.prepare("SELECT id FROM waypoint_lists WHERE name = ? ORDER BY id LIMIT 1").get(name) as { id: number } | undefined;
-  const listId = found?.id ?? Number(db.prepare("INSERT INTO waypoint_lists (name) VALUES (?)").run(name).lastInsertRowid);
+  const listId = found?.id ?? Number(db.prepare("INSERT INTO waypoint_lists (name, feature) VALUES (?, 'quiet-search')").run(name).lastInsertRowid);
   const dup = db
     .prepare("SELECT 1 FROM waypoints WHERE list_id = ? AND lat = ? AND lng = ? AND radius = ?")
     .get(listId, point.lat, point.lng, radius);

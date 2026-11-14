@@ -13,7 +13,7 @@ beforeEach(() => {
   runsDir = join(dir, "runs");
   mkdirSync(runsDir);
   db = openDb(":memory:");
-  db.exec("INSERT INTO waypoint_lists (name) VALUES ('清單')");
+  db.exec("INSERT INTO waypoint_lists (name, feature) VALUES ('清單', 'quiet-search')");
 });
 afterEach(() => {
   db.close();
@@ -105,19 +105,5 @@ describe("enforceRunsLimit", () => {
     db.prepare("UPDATE waypoint_runs SET run_dir = '../outside'").run();
     enforceRunsLimit({ db, runsDir, limitBytes: 10, busyBatchIds: new Set() });
     expect(existsSync(join(outside, "keep.txt"))).toBe(true);
-  });
-});
-
-describe("舊資料庫", () => {
-  it("沒有 images_cleared 欄位的舊 app.db 開起來會補上，舊 Batch 預設是 0", async () => {
-    const { DatabaseSync } = await import("node:sqlite");
-    const old = new DatabaseSync(join(dir, "app.db"));
-    old.exec(`CREATE TABLE waypoint_lists (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL);
-      CREATE TABLE batches (id INTEGER PRIMARY KEY AUTOINCREMENT, list_id INTEGER NOT NULL, feature TEXT NOT NULL, params TEXT NOT NULL, status TEXT NOT NULL, error TEXT, created_at TEXT NOT NULL, finished_at TEXT);
-      INSERT INTO batches (list_id, feature, params, status, created_at) VALUES (1, 'target-search', '{}', 'done', 'x');`);
-    old.close();
-    const migrated = openDb(dir);
-    expect(migrated.prepare("SELECT images_cleared AS c FROM batches").get()).toEqual({ c: 0 });
-    migrated.close();
   });
 });

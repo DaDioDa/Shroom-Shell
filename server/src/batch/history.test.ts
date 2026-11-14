@@ -36,9 +36,12 @@ async function setup(script: (cmd: string, i: number) => FakeReply | Promise<Fak
   const bot = new FakeBotRunner((req, i) => script(req.command, i));
   const app = buildApp({ dataDir: dir, bot, device: new FakeDevice(), waitMs: 0 });
   apps.push(app);
-  const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "清單A" } })).json();
-  await app.inject({ method: "POST", url: `/api/lists/${list.id}/import`, payload: { text } });
-  return { app, listId: list.id as number };
+  const mk = async (feature: string) => {
+    const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "清單A", feature } })).json();
+    await app.inject({ method: "POST", url: `/api/lists/${list.id}/import`, payload: { text } });
+    return list.id as number;
+  };
+  return { app, listId: await mk("target-search"), quietListId: await mk("quiet-search") };
 }
 type App = Awaited<ReturnType<typeof setup>>["app"];
 
@@ -58,7 +61,7 @@ describe("歷史 API", () => {
   it("列出所有功能的 Batch：功能、清單名稱、開始／結束時間、結果摘要", async () => {
     const t = await setup((cmd, i) => (cmd === "hunt" ? hunt(giant(), giant({ spot_name: "B" })) : i % 2 ? quiet(1, quietAnswer({ quiet_area: false, verdict: false, giants: [], claimed: { cell: 1, participant_count: 2 }, reason: "有人在打" })) : quiet(0, quietAnswer())));
     const h = await startHunt(t.app, t.listId);
-    const q = await startQuiet(t.app, t.listId);
+    const q = await startQuiet(t.app, t.quietListId);
     const rows = (await t.app.inject("/api/history")).json() as Record<string, unknown>[];
     expect(rows.map((r) => r.id)).toEqual([q, h]); // 新的在前
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
@@ -87,7 +90,7 @@ describe("歷史 API", () => {
       i === 0 ? quiet(0, quietAnswer({ unread: 2 })) : quiet(1, quietAnswer({ quiet_area: false, verdict: false, giants: [], reason: "有人在打", claimed: { cell: 45, participant_count: 3 } })),
       "1,1 r=250 甲" + NL + "2,2 乙",
     );
-    const id = await startQuiet(t.app, t.listId);
+    const id = await startQuiet(t.app, t.quietListId);
     const d = (await t.app.inject(`/api/history/${id}`)).json();
     expect(d.waypoints.map((w: { quiet: unknown }) => w.quiet)).toEqual([
       { radius: 250, result: quietAnswer({ unread: 2 }) },

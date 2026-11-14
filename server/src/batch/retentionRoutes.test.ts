@@ -39,7 +39,7 @@ async function runHunt(app: App, listId: number): Promise<number> {
   return batchId;
 }
 async function listWith2Waypoints(app: App): Promise<number> {
-  const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "清單A" } })).json();
+  const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "清單A", feature: "target-search" } })).json();
   await app.inject({ method: "POST", url: `/api/lists/${list.id}/import`, payload: { text: "1,1 甲" + NL + "2,2 乙" } });
   return list.id;
 }
@@ -68,7 +68,7 @@ describe("run 資料夾上限：觸發時機", () => {
 
   it("App 啟動時檢查一次", async () => {
     const seeded = openDb(dir);
-    seeded.exec("INSERT INTO waypoint_lists (name) VALUES ('清單')");
+    seeded.exec("INSERT INTO waypoint_lists (name, feature) VALUES ('清單', 'quiet-search')");
     for (const n of ["run-a", "run-b"]) {
       mkdirSync(join(dir, "runs", n), { recursive: true });
       writeFileSync(join(dir, "runs", n, "sighting-01.png"), Buffer.alloc(100));

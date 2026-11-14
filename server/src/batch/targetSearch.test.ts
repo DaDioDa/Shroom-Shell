@@ -58,7 +58,7 @@ async function setup(text: string, script: (n: number) => FakeReply) {
   };
   const app = buildApp({ dataDir: dir, bot, device, waitMs: 0 });
   apps.push(app);
-  const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "L" } })).json();
+  const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "L", feature: "target-search" } })).json();
   await app.inject({ method: "POST", url: `/api/lists/${list.id}/import`, payload: { text } });
   return { app, bot, device, timeline, listId: list.id as number };
 }

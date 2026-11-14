@@ -24,7 +24,7 @@ const aborted: FakeReply = {
 async function run(url: string, extra: object, reply: FakeReply, text = "1,1 @甲") {
   const app = buildApp({ dataDir: dir, bot: new FakeBotRunner(() => reply), device: new FakeDevice(), waitMs: 0 });
   apps.push(app);
-  const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "L" } })).json();
+  const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "L", feature: url.split("/").pop() } })).json();
   await app.inject({ method: "POST", url: `/api/lists/${list.id}/import`, payload: { text } });
   const { batchId } = (await app.inject({ method: "POST", url, payload: { listId: list.id, ...extra } })).json() as { batchId: number };
   const body = (await app.inject(`/api/batches/${batchId}/events`)).body;

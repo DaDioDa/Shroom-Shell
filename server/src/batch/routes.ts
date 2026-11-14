@@ -1,8 +1,8 @@
 import { createReadStream, existsSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
-import type { FastifyInstance } from "fastify";
-import { missingSpotNames, planDiscovery, type CancelMode, type QuietSearchParams, type Region, type Settings, type TargetSearchParams, type Waypoint } from "@shell/shared";
+import type { FastifyInstance, FastifyReply } from "fastify";
+import { missingSpotNames, planDiscovery, featureName, type CancelMode, type ListFeature, type QuietSearchParams, type Region, type Settings, type TargetSearchParams, type Waypoint } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { BatchHub } from "./hub.js";
 import { BatchQueue } from "./queue.js";
@@ -56,9 +56,8 @@ export function registerBatchRoutes(
   app.post("/api/batches/target-search", async (req, reply) => {
     const body = parseParams(req.body);
     if (!body) return reply.code(400).send({ error: "需要 listId、至少一個 targets、radius > 0、skipCrowded >= 0" });
-    if (db.prepare("SELECT 1 FROM waypoint_lists WHERE id = ?").get(body.listId) === undefined) {
-      return reply.code(404).send({ error: "找不到清單" });
-    }
+    const bad = checkListFeature(reply, body.listId, "target-search");
+    if (bad) return bad;
     rememberTargets(db, body.targets);
     const waypoints = db
       .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius FROM waypoints WHERE list_id = ? ORDER BY position, id")
@@ -85,6 +84,14 @@ export function registerBatchRoutes(
     hub.emit(batchId, { type: "finished", status: "cancelled", error: "在排隊時被移出佇列" });
   }
 
+  /** 清單不存在回 404、功能不符回 400；通過回 null。 */
+  function checkListFeature(reply: FastifyReply, listId: number, feature: ListFeature) {
+    const row = db.prepare("SELECT feature FROM waypoint_lists WHERE id = ?").get(listId) as { feature: string } | undefined;
+    if (row === undefined) return reply.code(404).send({ error: "找不到清單" });
+    if (row.feature !== feature) return reply.code(400).send({ error: `這份清單屬於 ${featureName(row.feature)}，不能用在 ${featureName(feature)}` });
+    return null;
+  }
+
   app.get("/api/queue", async () => queue.snapshot());
 
   app.post<{ Params: { id: string } }>("/api/batches/:id/cancel", async (req, reply) => {
@@ -102,9 +109,8 @@ export function registerBatchRoutes(
       return reply.code(400).send({ error: "需要 listId 與 radius > 0" });
     }
     const params: QuietSearchParams = { listId: b.listId, radius: b.radius };
-    if (db.prepare("SELECT 1 FROM waypoint_lists WHERE id = ?").get(params.listId) === undefined) {
-      return reply.code(404).send({ error: "找不到清單" });
-    }
+    const bad = checkListFeature(reply, params.listId, "quiet-search");
+    if (bad) return bad;
     const waypoints = db
       .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius, spot_name AS spotName FROM waypoints WHERE list_id = ? ORDER BY position, id")
       .all(params.listId) as unknown as Waypoint[];
@@ -116,7 +122,8 @@ export function registerBatchRoutes(
   app.post("/api/batches/postcard-check", async (req, reply) => {
     const listId = ((req.body ?? {}) as { listId?: unknown }).listId;
     if (typeof listId !== "number") return reply.code(400).send({ error: "需要 listId" });
-    if (db.prepare("SELECT 1 FROM waypoint_lists WHERE id = ?").get(listId) === undefined) return reply.code(404).send({ error: "找不到清單" });
+    const bad = checkListFeature(reply, listId, "postcard-check");
+    if (bad) return bad;
     const waypoints = db
       .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius, spot_name AS spotName FROM waypoints WHERE list_id = ? ORDER BY position, id")
       .all(listId) as unknown as Waypoint[];
@@ -148,7 +155,7 @@ export function registerBatchRoutes(
     }
     // 每次另開一份鋪點清單（不覆蓋舊的，舊 Batch 的歷史才對得上）。
     const stamp = new Date().toLocaleString("sv-SE", { hour12: false }).slice(0, 16);
-    const gridId = Number(db.prepare("INSERT INTO waypoint_lists (name) VALUES (?)").run(`Discovery 鋪點：${name}（${stamp}）`).lastInsertRowid);
+    const gridId = Number(db.prepare("INSERT INTO waypoint_lists (name, feature) VALUES (?, 'quiet-search')").run(`Discovery 鋪點：${name}（${stamp}）`).lastInsertRowid);
     const ins = db.prepare("INSERT INTO waypoints (list_id, position, lat, lng, label) VALUES (?, ?, ?, ?, ?)");
     plan.points.forEach((p, i) => ins.run(gridId, i, p.lat, p.lng, `格 ${i + 1}`));
     const waypoints = db

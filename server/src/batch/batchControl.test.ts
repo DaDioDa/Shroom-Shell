@@ -47,9 +47,12 @@ async function setup(text: string, script: (i: number) => FakeReply | Promise<Fa
   device.stop = async () => (timeline.push("stop"), s());
   const app = buildApp({ dataDir: dir, bot, device, waitMs: 0 });
   apps.push(app);
-  const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "L" } })).json();
-  await app.inject({ method: "POST", url: `/api/lists/${list.id}/import`, payload: { text } });
-  return { app, bot, device, timeline, listId: list.id as number };
+  const mk = async (feature: string) => {
+    const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "L", feature } })).json();
+    await app.inject({ method: "POST", url: `/api/lists/${list.id}/import`, payload: { text } });
+    return list.id as number;
+  };
+  return { app, bot, device, timeline, listId: await mk("target-search"), quietListId: await mk("quiet-search") };
 }
 type T = Awaited<ReturnType<typeof setup>>;
 
@@ -105,7 +108,7 @@ describe("佇列", () => {
     });
     const t = await setup("1,1 甲"+NL+"2,2 乙", (i) => (i === 0 ? g.wait.then(ok) : quietReply()));
     const a = await start(t); // Target Search 先跑
-    const q = await t.app.inject({ method: "POST", url: "/api/batches/quiet-search", payload: { listId: t.listId, radius: 500 } });
+    const q = await t.app.inject({ method: "POST", url: "/api/batches/quiet-search", payload: { listId: t.quietListId, radius: 500 } });
     expect(q.statusCode).toBe(201);
     const b = (q.json() as { batchId: number }).batchId;
     await until(() => t.bot.calls.length === 1, "A 開始");
@@ -119,7 +122,7 @@ describe("佇列", () => {
 
     // Quiet 也能強制停止
     const h = await setup("1,1 甲"+NL+"2,2 乙", () => ({ ...ok(), hang: true }));
-    const r = await h.app.inject({ method: "POST", url: "/api/batches/quiet-search", payload: { listId: h.listId, radius: 500 } });
+    const r = await h.app.inject({ method: "POST", url: "/api/batches/quiet-search", payload: { listId: h.quietListId, radius: 500 } });
     const qid = (r.json() as { batchId: number }).batchId;
     await until(() => h.bot.calls.length === 1, "quiet bot 開始");
     await cancel(h, qid, "force");

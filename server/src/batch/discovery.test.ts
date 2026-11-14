@@ -49,7 +49,7 @@ async function events(app: App, batchId: number) {
   return sse.body.split(NL + NL).filter((b) => b.startsWith("data: ")).map((b) => JSON.parse(b.slice(6)) as BatchEvent);
 }
 async function lists(app: App) {
-  return (await app.inject("/api/lists")).json() as WaypointList[];
+  return (await app.inject("/api/lists?feature=quiet-search")).json() as WaypointList[];
 }
 async function waypointsOf(app: App, listId: number) {
   return (await app.inject(`/api/lists/${listId}/waypoints`)).json() as Waypoint[];

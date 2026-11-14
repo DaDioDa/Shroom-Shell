@@ -1,8 +1,14 @@
 import type { CheckOutcome } from "./postcardCheck.js";
 
+/** Waypoint List 所屬的功能：建立時決定，之後不能改。 */
+export const LIST_FEATURES = ["postcard-check", "quiet-search", "target-search"] as const;
+export type ListFeature = (typeof LIST_FEATURES)[number];
+export const isListFeature = (v: unknown): v is ListFeature => (LIST_FEATURES as readonly unknown[]).includes(v);
+
 export interface WaypointList {
   id: number;
   name: string;
+  feature: ListFeature;
   waypointCount: number;
 }
 

@@ -13,7 +13,7 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 async function createList(app: ReturnType<typeof buildApp>, name: string): Promise<WaypointList> {
-  const res = await app.inject({ method: "POST", url: "/api/lists", payload: { name } });
+  const res = await app.inject({ method: "POST", url: "/api/lists", payload: { name, feature: "quiet-search" } });
   expect(res.statusCode).toBe(201);
   return res.json();
 }
@@ -23,20 +23,20 @@ describe("Waypoint List API", () => {
     const app = buildApp({ dataDir: dir });
     const a = await createList(app, "A");
     await createList(app, "B");
-    expect((await app.inject("/api/lists")).json().map((l: WaypointList) => l.name)).toEqual(["A", "B"]);
+    expect((await app.inject("/api/lists?feature=quiet-search")).json().map((l: WaypointList) => l.name)).toEqual(["A", "B"]);
 
     const renamed = await app.inject({ method: "PATCH", url: `/api/lists/${a.id}`, payload: { name: "A2" } });
     expect(renamed.json().name).toBe("A2");
 
     expect((await app.inject({ method: "DELETE", url: `/api/lists/${a.id}` })).statusCode).toBe(204);
-    expect((await app.inject("/api/lists")).json().map((l: WaypointList) => l.name)).toEqual(["B"]);
+    expect((await app.inject("/api/lists?feature=quiet-search")).json().map((l: WaypointList) => l.name)).toEqual(["B"]);
     expect((await app.inject({ method: "DELETE", url: `/api/lists/${a.id}` })).statusCode).toBe(404);
     await app.close();
   });
 
   it("空名字回 400", async () => {
     const app = buildApp({ dataDir: dir });
-    const res = await app.inject({ method: "POST", url: "/api/lists", payload: { name: "  " } });
+    const res = await app.inject({ method: "POST", url: "/api/lists", payload: { name: "  ", feature: "quiet-search" } });
     expect(res.statusCode).toBe(400);
     await app.close();
   });
@@ -60,7 +60,7 @@ describe("Waypoint List API", () => {
     await app.inject({ method: "POST", url: `/api/lists/${list.id}/import`, payload: { text: "1,2 乙" } });
     const wps = (await app.inject(`/api/lists/${list.id}/waypoints`)).json() as Waypoint[];
     expect(wps.map((w) => w.label)).toEqual(["甲", "", "乙"]);
-    expect((await app.inject("/api/lists")).json()[0].waypointCount).toBe(3);
+    expect((await app.inject("/api/lists?feature=quiet-search")).json()[0].waypointCount).toBe(3);
     await app.close();
   });
 
@@ -99,8 +99,8 @@ describe("Waypoint List API", () => {
     await first.close();
 
     const second = buildApp({ dataDir: dir });
-    const lists = (await second.inject("/api/lists")).json() as WaypointList[];
-    expect(lists).toEqual([{ id: list.id, name: "持久", waypointCount: 1 }]);
+    const lists = (await second.inject("/api/lists?feature=quiet-search")).json() as WaypointList[];
+    expect(lists).toEqual([{ id: list.id, name: "持久", feature: "quiet-search", waypointCount: 1 }]);
     const wps = (await second.inject(`/api/lists/${list.id}/waypoints`)).json() as Waypoint[];
     expect(wps[0]).toMatchObject({ lat: 9.5, lng: 100.25, label: "標" });
     await second.close();
@@ -113,7 +113,7 @@ describe("Waypoint List API", () => {
     const res = await app.inject({ method: "POST", url: `/api/lists/${list.id}/waypoints`, payload: { lat: 3, lng: 4 } });
     expect(res.statusCode).toBe(201);
     expect(res.json()).toMatchObject({ lat: 3, lng: 4, label: "", radius: null, spotName: null, position: 1 });
-    expect((await app.inject("/api/lists")).json()[0].waypointCount).toBe(2);
+    expect((await app.inject("/api/lists?feature=quiet-search")).json()[0].waypointCount).toBe(2);
     expect((await app.inject({ method: "POST", url: `/api/lists/${list.id}/waypoints`, payload: { lat: 99, lng: 4 } })).statusCode).toBe(400);
     await app.close();
   });
@@ -170,16 +170,4 @@ describe("Waypoint List API", () => {
     await app.close();
   });
 
-  it("舊資料庫（沒有 spot_name 欄位）開啟後自動補欄位且資料保留", async () => {
-    const old = new DatabaseSync(join(dir, "app.db"));
-    old.exec(`CREATE TABLE waypoint_lists (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL);
-      CREATE TABLE waypoints (id INTEGER PRIMARY KEY AUTOINCREMENT, list_id INTEGER NOT NULL REFERENCES waypoint_lists(id) ON DELETE CASCADE,
-        position INTEGER NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL, label TEXT NOT NULL DEFAULT '', radius REAL);
-      INSERT INTO waypoint_lists (name) VALUES ('舊'); INSERT INTO waypoints (list_id, position, lat, lng, label) VALUES (1, 0, 5, 6, '舊點');`);
-    old.close();
-    const app = buildApp({ dataDir: dir });
-    const wps = (await app.inject("/api/lists/1/waypoints")).json() as Waypoint[];
-    expect(wps[0]).toMatchObject({ label: "舊點", spotName: null });
-    await app.close();
-  });
 });

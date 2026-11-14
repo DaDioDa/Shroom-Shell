@@ -38,7 +38,7 @@ async function setup(text: string, script: (i: number) => FakeReply) {
   const bot = new FakeBotRunner((_r, i) => script(i));
   const app = buildApp({ dataDir: dir, bot, device, waitMs: 0 });
   apps.push(app);
-  const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "L" } })).json();
+  const list = (await app.inject({ method: "POST", url: "/api/lists", payload: { name: "L", feature: "postcard-check" } })).json();
   await app.inject({ method: "POST", url: `/api/lists/${list.id}/import`, payload: { text } });
   return { app, bot, device, listId: list.id as number };
 }

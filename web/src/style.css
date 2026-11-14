@@ -34,3 +34,7 @@ html, body, #root { height: 100%; margin: 0; font-family: system-ui, sans-serif;
 .slider .row { display: flex; gap: 8px; align-items: center; }
 .slider input[type="range"] { flex: 1; }
 .slider input[type="number"] { width: 5em; }
+.wpform { display: flex; flex-direction: column; gap: 6px; border: 1px solid #ced4da; border-radius: 6px; padding: 8px; margin: 8px 0; }
+.wpform h4 { margin: 0; }
+button.active { background: #1971c2; color: #fff; }
+button.danger { color: #b00020; }

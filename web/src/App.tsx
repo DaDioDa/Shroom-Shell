@@ -5,6 +5,7 @@ import { WaypointMap, type CheckMark, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
 import { DiscoveryPanel } from "./DiscoveryPanel.js";
 import { ListManager } from "./ListManager.js";
+import { WaypointForm } from "./WaypointForm.js";
 import { HistoryPanel } from "./HistoryPanel.js";
 import { PostcardCheckPanel } from "./PostcardCheckPanel.js";
 import { QuietSearchPanel } from "./QuietSearchPanel.js";
@@ -33,6 +34,11 @@ export function App() {
   const [tab, setTab] = useState<Tab>("quiet");
   const [region, setRegion] = useState<Region | null>(null);
   const [drawing, setDrawing] = useState(false);
+  // 「＋ 在地圖上新增」模式；換分頁或換清單就關掉。
+  const [addMode, setAddMode] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  // 畫面內的 Waypoint 表單：編輯既有的，或美片菇新增時問 Spot Name。
+  const [editing, setEditing] = useState<{ mode: "edit"; w: Waypoint } | { mode: "add"; lat: number; lng: number } | null>(null);
   const [showAllSightings, setShowAllSightings] = useState(false);
   const { views, follow } = useBatchViews();
   const now = useNow();
@@ -73,6 +79,12 @@ export function App() {
     };
   }, [selectedId]);
 
+  useEffect(() => {
+    setAddMode(false);
+    setNotice(null);
+    setEditing(null);
+  }, [tab, selectedId]);
+
   const select = (id: number | null) => feature && setSelectedBy((m) => ({ ...m, [feature]: id }));
   const reload = async () => {
     if (selectedId === null) return;
@@ -80,45 +92,32 @@ export function App() {
     if (feature) await refreshLists(feature);
   };
   const addAt = async (lat: number, lng: number) => {
-    if (selectedId === null) return;
-    let spotName: string | undefined;
-    if (feature === "postcard-check") {
-      const name = window.prompt("Spot Name（必填）", "");
-      if (!name?.trim()) return;
-      spotName = name.trim();
-    }
+    if (selectedId === null || !addMode) return;
+    setNotice(null);
+    // 美片菇要 Spot Name：用畫面內的表單問。
+    if (feature === "postcard-check") return setEditing({ mode: "add", lat, lng });
     try {
-      await api.addWaypoint(selectedId, lat, lng, spotName);
+      await api.addWaypoint(selectedId, lat, lng);
     } catch (e) {
-      return void window.alert(e instanceof Error ? e.message : String(e));
+      return setNotice(e instanceof Error ? e.message : String(e));
     }
     await reload();
   };
-  const edit = async (w: Waypoint) => {
-    const label = window.prompt("標籤", w.label);
-    if (label === null) return;
-    const patch: { label: string; radius?: number | null; spotName?: string | null } = { label };
-    if (feature === "postcard-check") {
-      const spotName = window.prompt("Spot Name（必填）", w.spotName ?? "");
-      if (spotName === null) return;
-      patch.spotName = spotName.trim() || null;
+  const edit = (w: Waypoint) => setEditing({ mode: "edit", w });
+  const submitForm = async (patch: { label: string; radius?: number | null; spotName?: string | null }) => {
+    if (!editing || selectedId === null) return;
+    if (editing.mode === "edit") {
+      await api.updateWaypoint(editing.w.id, patch);
     } else {
-      const radiusText = window.prompt("半徑（公尺，留空＝未設定）", w.radius?.toString() ?? "");
-      if (radiusText === null) return;
-      const radius = radiusText.trim() === "" ? null : Number(radiusText);
-      if (radius !== null && !(radius > 0)) return void window.alert("半徑要是正數");
-      patch.radius = radius;
+      const created = await api.addWaypoint(selectedId, editing.lat, editing.lng, patch.spotName ?? undefined);
+      if (patch.label) await api.updateWaypoint(created.id, { label: patch.label });
     }
-    try {
-      await api.updateWaypoint(w.id, patch);
-    } catch (e) {
-      return void window.alert(e instanceof Error ? e.message : String(e));
-    }
+    setEditing(null);
     await reload();
   };
   const removeWaypoint = async (w: Waypoint) => {
-    if (!window.confirm(`刪除「${w.label || `${w.lat}, ${w.lng}`}」？`)) return;
     await api.deleteWaypoint(w.id);
+    if (editing?.mode === "edit" && editing.w.id === w.id) setEditing(null);
     await reload();
   };
   const move = async (index: number, delta: -1 | 1) => {
@@ -171,9 +170,8 @@ export function App() {
         region={tab === "discovery" ? region : null}
         drawing={tab === "discovery" && drawing}
         onRegionDrawn={(r) => (setRegion(r), setDrawing(false))}
-        onMapClick={feature && selectedId !== null ? addAt : undefined}
+        onMapClick={feature && selectedId !== null && addMode ? addAt : undefined}
         onMarkerEdit={edit}
-        onMarkerDelete={removeWaypoint}
       />
       <div className="panel">
         <div className="tabs">
@@ -200,6 +198,19 @@ export function App() {
             onEdit={edit}
             onRemoveWaypoint={removeWaypoint}
             onMove={move}
+            addMode={addMode}
+            onToggleAdd={() => setAddMode((v) => !v)}
+            notice={notice}
+          />
+        )}
+        {feature && editing && (
+          <WaypointForm
+            key={editing.mode === "edit" ? `edit:${editing.w.id}` : `add:${editing.lat},${editing.lng}`}
+            feature={feature}
+            title={editing.mode === "edit" ? "編輯 Waypoint" : `新增 Waypoint（${editing.lat.toFixed(6)}, ${editing.lng.toFixed(6)}）`}
+            initial={editing.mode === "edit" ? { label: editing.w.label, radius: editing.w.radius, spotName: editing.w.spotName ?? null } : { label: "", radius: null, spotName: null }}
+            onSubmit={submitForm}
+            onCancel={() => setEditing(null)}
           />
         )}
         {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} radius={quietRadius} onRadiusChange={setQuietRadius} onStarted={(id) => follow("quiet-search", id)} />}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { ConfirmButton } from "./ConfirmButton.js";
 import { featureName, type HistoryDetail, type HistoryRow } from "@shell/shared";
 import { api } from "./api.js";
 import { CheckResultCard } from "./CheckResultCard.js";
@@ -37,7 +38,6 @@ export function HistoryPanel({ refreshKey, onDetail }: { refreshKey: unknown; on
 
   const open = async (id: number) => setDetail(await api.historyDetail(id));
   const remove = async (r: HistoryRow) => {
-    if (!window.confirm(`刪除 Batch #${r.id}（${featureName(r.feature)}）？\n會一併刪掉資料庫紀錄與 run 資料夾（截圖），無法復原。`)) return;
     setMessage(null);
     try {
       await api.deleteBatch(r.id);
@@ -125,9 +125,7 @@ export function HistoryPanel({ refreshKey, onDetail }: { refreshKey: unknown; on
           <div>{r.summary}</div>
           {r.imagesCleared && <div className="muted">圖片已清除</div>}
           <button onClick={() => open(r.id)}>查看</button>{" "}
-          <button disabled={busy(r)} title={busy(r) ? "執行中或排隊中的 Batch 不能刪除" : undefined} onClick={() => remove(r)}>
-            刪除
-          </button>
+          <ConfirmButton id={`batch:${r.id}`} disabled={busy(r)} title={busy(r) ? "執行中或排隊中的 Batch 不能刪除" : "會一併刪掉資料庫紀錄與 run 資料夾（截圖），無法復原"} onConfirm={() => void remove(r)} />
         </div>
       ))}
     </div>

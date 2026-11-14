@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { featureName, type ImportLineError, type ListFeature, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
+import { ConfirmButton } from "./ConfirmButton.js";
 
 const IMPORT_HINT: Record<ListFeature, string> = {
   "postcard-check": "每行都要有 @Spot Name（寫在行尾），不能帶半徑。Postcard Check 的 GPS 要夠準：check 只看冷啟動後的起點畫面。",
@@ -26,13 +27,20 @@ interface Props {
   onEdit: (w: Waypoint) => void;
   onRemoveWaypoint: (w: Waypoint) => void;
   onMove: (index: number, delta: -1 | 1) => void;
+  /** 「＋ 在地圖上新增」模式是否開著。 */
+  addMode: boolean;
+  onToggleAdd: () => void;
+  /** 新增時的錯誤等訊息。 */
+  notice: string | null;
 }
 
 /** 三個功能分頁共用的清單管理：下拉選清單、建立、改名、刪除、匯入、Waypoint 列表。 */
-export function ListManager({ feature, lists, selectedId, waypoints, onSelect, onListsChanged, onWaypointsChanged, onEdit, onRemoveWaypoint, onMove }: Props) {
+export function ListManager({ feature, lists, selectedId, waypoints, onSelect, onListsChanged, onWaypointsChanged, onEdit, onRemoveWaypoint, onMove, addMode, onToggleAdd, notice }: Props) {
   const [newName, setNewName] = useState("");
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<ImportLineError[]>([]);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
   const selected = lists.find((l) => l.id === selectedId) ?? null;
 
   const create = async () => {
@@ -43,14 +51,18 @@ export function ListManager({ feature, lists, selectedId, waypoints, onSelect, o
     onSelect(l.id);
   };
   const rename = async (l: WaypointList) => {
-    const name = window.prompt("新名稱", l.name);
-    if (name?.trim()) {
-      await api.renameList(l.id, name);
+    if (renaming?.trim()) {
+      await api.renameList(l.id, renaming);
       await onListsChanged();
     }
+    setRenaming(null);
+  };
+  const toggleAdd = () => {
+    if (selected === null) return setHint("請先選擇或建立清單");
+    setHint(null);
+    onToggleAdd();
   };
   const remove = async (l: WaypointList) => {
-    if (!window.confirm(`刪除「${l.name}」？`)) return;
     await api.deleteList(l.id);
     if (selectedId === l.id) onSelect(null);
     await onListsChanged();
@@ -77,25 +89,41 @@ export function ListManager({ feature, lists, selectedId, waypoints, onSelect, o
       </select>{" "}
       {selected && (
         <>
-          <button onClick={() => rename(selected)}>改名</button> <button onClick={() => remove(selected)}>刪除</button>
+          {renaming === null ? (
+            <>
+              <button onClick={() => setRenaming(selected.name)}>改名</button> <ConfirmButton id={`list:${selected.id}`} onConfirm={() => void remove(selected)} />
+            </>
+          ) : (
+            <>
+              <input value={renaming} autoFocus onChange={(e) => setRenaming(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void rename(selected)} />
+              <button onClick={() => void rename(selected)}>儲存</button> <button onClick={() => setRenaming(null)}>取消</button>
+            </>
+          )}
         </>
       )}
       <div>
         <input value={newName} placeholder="新清單名稱" onChange={(e) => setNewName(e.target.value)} />
         <button onClick={create}>建立</button>
       </div>
+      <div>
+        <button className={addMode && selected ? "active" : ""} aria-pressed={addMode && selected !== null} onClick={toggleAdd}>
+          ＋ 在地圖上新增
+        </button>
+        {addMode && selected && <span className="muted"> 點地圖加入「{selected.name}」</span>}
+        {(hint ?? notice) && <span className="errors"> {hint ?? notice}</span>}
+      </div>
       {selected && (
         <>
-          <h4>Waypoint（點地圖新增、點標記編輯）</h4>
+          <h4>Waypoint（點標記或清單列編輯）</h4>
           <ol>
             {waypoints.map((w, i) => (
               <li key={w.id}>
-                {w.label || `${w.lat}, ${w.lng}`}
+                <a href="#" onClick={(e) => (e.preventDefault(), onEdit(w))}>{w.label || `${w.lat}, ${w.lng}`}</a>
                 {w.spotName ? `〔${w.spotName}〕` : ""}
                 {w.radius !== null ? ` r=${w.radius}` : ""}{" "}
                 <button disabled={i === 0} onClick={() => onMove(i, -1)}>↑</button>
                 <button disabled={i === waypoints.length - 1} onClick={() => onMove(i, 1)}>↓</button>{" "}
-                <button onClick={() => onEdit(w)}>編輯</button> <button onClick={() => onRemoveWaypoint(w)}>刪除</button>
+                <button onClick={() => onEdit(w)}>編輯</button> <ConfirmButton id={`wp:${w.id}`} onConfirm={() => onRemoveWaypoint(w)} />
               </li>
             ))}
           </ol>

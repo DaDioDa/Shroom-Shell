@@ -35,8 +35,10 @@ export function BatchDrawer({ onFollow, view }: { onFollow: (feature: string, ba
     }
     await refresh();
   };
+  // 強制停止的警告與確認顯示在抽屜內。
+  const [forcing, setForcing] = useState<QueueItem | null>(null);
   const force = (i: QueueItem) => {
-    if (!window.confirm("強制停止會立刻結束 bot 的程序。\n遊戲可能還開著、手機螢幕可能沒鎖，之後要自己處理。\n\n確定要強制停止？")) return;
+    setForcing(null);
     void run(() => api.cancelBatch(i.batchId, "force"));
   };
 
@@ -48,7 +50,14 @@ export function BatchDrawer({ onFollow, view }: { onFollow: (feature: string, ba
           <strong>執行中</strong>
           <a href="#" onClick={(e) => (e.preventDefault(), onFollow(q.running!.feature, q.running!.batchId))}>{label(q.running)}</a>
           <button onClick={() => void run(() => api.cancelBatch(q.running!.batchId, "after-waypoint"))}>跑完這點就停</button>
-          <button className="danger" onClick={() => force(q.running!)}>強制停止</button>
+          <button className="danger" onClick={() => setForcing(q.running!)}>強制停止</button>
+        </div>
+      )}
+      {forcing && (
+        <div className="row errors">
+          <span>強制停止會立刻結束 bot 的程序。遊戲可能還開著、手機螢幕可能沒鎖，之後要自己處理。</span>
+          <button className="danger" onClick={() => force(forcing)}>確定強制停止</button>
+          <button onClick={() => setForcing(null)}>取消</button>
         </div>
       )}
       {view.status !== "idle" && (

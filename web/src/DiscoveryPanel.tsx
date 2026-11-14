@@ -21,6 +21,8 @@ export function DiscoveryPanel({ region, drawing, onDraw, view, onStarted }: Pro
   const [spacing, setSpacing] = useState(1000);
   const [avg, setAvg] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 超過 30 點的確認顯示在面板內。
+  const [confirming, setConfirming] = useState(false);
   const log = useRef<HTMLPreElement>(null);
   useEffect(() => void api.quietStats().then((s) => setAvg(s.avgMsPerPoint)).catch(() => {}), [view.status]);
   useEffect(() => {
@@ -34,7 +36,8 @@ export function DiscoveryPanel({ region, drawing, onDraw, view, onStarted }: Pro
 
   const start = async () => {
     if (!region || !plan?.ok) return;
-    if (plan.needsConfirm && !window.confirm(`這會跑 ${plan.points.length} 個點，預估 ${fmtDuration(plan.estimateMs)}。確定要開始？`)) return;
+    if (plan.needsConfirm && !confirming) return setConfirming(true);
+    setConfirming(false);
     setError(null);
     try {
       const r = await api.startDiscovery({ name: name.trim(), region, radius, spacing, confirmed: plan.needsConfirm });
@@ -79,9 +82,15 @@ export function DiscoveryPanel({ region, drawing, onDraw, view, onStarted }: Pro
           {plan.needsConfirm && "。超過 30 點，開始前會再確認一次"}
         </p>
       )}
-      <button disabled={!canStart || running} onClick={start}>
-        開始
-      </button>
+      {confirming && plan?.ok ? (
+        <p className="errors">
+          這會跑 {plan.points.length} 個點，預估 {fmtDuration(plan.estimateMs)}。確定要開始？ <button onClick={start}>確定開始</button> <button onClick={() => setConfirming(false)}>取消</button>
+        </p>
+      ) : (
+        <button disabled={!canStart || running} onClick={start}>
+          開始
+        </button>
+      )}
       {error && <p className="errors">{error}</p>}
       <p className="muted">結果：綠＝是（會自動加進「Discovery：{name.trim() || "名稱"}」清單）、紅＝不是、灰＝無法判斷。</p>
       {view.status !== "idle" && (

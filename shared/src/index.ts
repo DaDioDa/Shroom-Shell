@@ -12,3 +12,4 @@ export * from "./featureNames.js";
 export * from "./discoveryNaming.js";
 export * from "./sliders.js";
 export * from "./regionEditor.js";
+export * from "./waypointForm.js";

@@ -46,3 +46,7 @@ html, body, #root { height: 100%; margin: 0; font-family: system-ui, sans-serif;
 .region-stats { margin: 8px 0; }
 .region-big { font-size: 22px; font-weight: bold; margin: 4px 0; }
 .confirm { border: 1px solid #f08c00; background: #fff9db; padding: 8px; border-radius: 6px; }
+.wpform { display: flex; flex-direction: column; gap: 6px; border: 1px solid #ced4da; border-radius: 6px; padding: 8px; margin: 8px 0; }
+.wpform h4 { margin: 0; }
+button.active { background: #1971c2; color: #fff; }
+button.danger { color: #b00020; }

@@ -28,7 +28,6 @@ export function WaypointMap({
   waypoints,
   onMapClick,
   onMarkerEdit,
-  onMarkerDelete,
   sightings = [],
   areas = [],
   checkMarks = [],
@@ -41,7 +40,6 @@ export function WaypointMap({
   waypoints: Waypoint[];
   onMapClick?: (lat: number, lng: number) => void;
   onMarkerEdit?: (w: Waypoint) => void;
-  onMarkerDelete?: (w: Waypoint) => void;
   sightings?: StoredSighting[];
   areas?: SweepArea[];
   checkMarks?: CheckMark[];
@@ -61,8 +59,8 @@ export function WaypointMap({
   const areaClickRef = useRef(onAreaClick);
   areaClickRef.current = onAreaClick;
   const regionLayer = useRef<L.LayerGroup | null>(null);
-  const clickRef = useRef({ onMapClick, onMarkerEdit, onMarkerDelete });
-  clickRef.current = { onMapClick, onMarkerEdit, onMarkerDelete };
+  const clickRef = useRef({ onMapClick, onMarkerEdit });
+  clickRef.current = { onMapClick, onMarkerEdit };
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
@@ -98,18 +96,11 @@ export function WaypointMap({
     const pts: L.LatLngTuple[] = [];
     for (const w of waypoints) {
       const marker = L.circleMarker([w.lat, w.lng], { radius: 8 }).addTo(g);
-      const box = document.createElement("div");
-      for (const [text, act] of [["編輯", "onMarkerEdit"], ["刪除", "onMarkerDelete"]] as const) {
-        const b = document.createElement("button");
-        b.textContent = text;
-        b.onclick = () => {
-          marker.closePopup();
-          clickRef.current[act]?.(w);
-        };
-        box.appendChild(b);
-      }
-      marker.bindPopup(box);
-      marker.on("click", (e) => L.DomEvent.stopPropagation(e));
+      // 點標記展開畫面內的編輯表單。
+      marker.on("click", (e) => {
+        L.DomEvent.stopPropagation(e);
+        clickRef.current.onMarkerEdit?.(w);
+      });
       marker.bindTooltip(w.label || `${w.lat}, ${w.lng}`, { permanent: true, direction: "top" });
       pts.push([w.lat, w.lng]);
     }

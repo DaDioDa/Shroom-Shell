@@ -13,3 +13,4 @@ export * from "./discoveryNaming.js";
 export * from "./sliders.js";
 export * from "./regionEditor.js";
 export * from "./waypointForm.js";
+export * from "./tabLayers.js";

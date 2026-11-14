@@ -1,6 +1,6 @@
 import L from "leaflet";
 import { useEffect, useRef } from "react";
-import { sweepAreaSquare, type StoredSighting, type SweepAreaColor, type Waypoint } from "@shell/shared";
+import { isSightingExpired, sweepAreaSquare, type StoredSighting, type SweepAreaColor, type Waypoint } from "@shell/shared";
 
 /** 地圖上的 Sweep Area：以 (lat,lng) 為中心、邊長 2R 公尺的正方形。 */
 export interface SweepArea {
@@ -19,12 +19,15 @@ export function WaypointMap({
   onMarkerClick,
   sightings = [],
   areas = [],
+  now = Date.now(),
 }: {
   waypoints: Waypoint[];
   onMapClick?: (lat: number, lng: number) => void;
   onMarkerClick?: (w: Waypoint) => void;
   sightings?: StoredSighting[];
   areas?: SweepArea[];
+  /** 判斷 Sighting 是否過期用的現在時間。 */
+  now?: number;
 }) {
   const clickRef = useRef({ onMapClick, onMarkerClick });
   clickRef.current = { onMapClick, onMarkerClick };
@@ -74,7 +77,7 @@ export function WaypointMap({
         .bindTooltip(`${s.target}｜${s.spot_name}`)
         .addTo(g);
     }
-  }, [sightings]);
+  }, [sightings, now]);
 
   useEffect(() => {
     const g = areaLayer.current!;

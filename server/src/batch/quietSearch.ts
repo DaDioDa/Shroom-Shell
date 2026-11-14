@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import { sweepRadius, type BotSighting, type QuietResult, type QuietSearchParams, type Waypoint } from "@shell/shared";
 import { parseQuietStdout } from "../bot/parseQuiet.js";
 import { failureReason, type BatchDeps } from "./targetSearch.js";
+import { recordWaypointRunRadius } from "./history.js";
 import { finishBatch, saveSighting, saveWaypointRun } from "./store.js";
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -69,6 +70,7 @@ export async function runQuietSearch(
         batchId, waypointId: w.id, index, exitCode: run.exitCode, result,
         runDir: runName, error: result.verdict === null ? result.reason : null,
       });
+      recordWaypointRunRadius(deps.db, batchId, index, sweepRadius(w, params.radius));
     }
   } catch (e) {
     error = errorMessage(e);

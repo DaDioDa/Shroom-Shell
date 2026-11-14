@@ -75,6 +75,8 @@ export function openDb(dataDir: string): Db {
   `);
   // 舊資料庫沒有 spot_name：CREATE TABLE IF NOT EXISTS 不會補欄位，要自己 ALTER。
   ensureColumn(db, "waypoints", "spot_name", "TEXT");
+  // Quiet 每點實際用的半徑（歷史頁用）。
+  ensureColumn(db, "waypoint_runs", "radius", "REAL");
   return db;
 }
 

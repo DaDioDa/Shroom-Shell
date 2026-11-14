@@ -6,6 +6,7 @@ import type { QuietSearchParams, TargetSearchParams, Waypoint } from "@shell/sha
 import type { Db } from "../db/database.js";
 import { BatchHub } from "./hub.js";
 import { createBatch, getBatch, listSightings, listTargets, rememberTargets } from "./store.js";
+import { deleteBatch, getHistory, listHistory } from "./history.js";
 import { runQuietSearch } from "./quietSearch.js";
 import { runTargetSearch, type BatchDeps } from "./targetSearch.js";
 
@@ -54,6 +55,19 @@ export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<Bat
     hub.open(batchId);
     void runQuietSearch(full, batchId, params, waypoints);
     return reply.code(201).send({ batchId });
+  });
+
+  app.get("/api/history", async () => listHistory(db));
+
+  app.get<{ Params: { id: string } }>("/api/history/:id", async (req, reply) => {
+    return getHistory(db, Number(req.params.id), deps.runsDir) ?? reply.code(404).send({ error: "找不到 Batch" });
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/batches/:id", async (req, reply) => {
+    const outcome = deleteBatch(db, Number(req.params.id), deps.runsDir);
+    if (outcome === "not-found") return reply.code(404).send({ error: "找不到 Batch" });
+    if (outcome === "busy") return reply.code(409).send({ error: "Batch 正在執行或排隊中，不能刪除" });
+    return reply.code(204).send();
   });
 
   app.get("/api/targets",async () => listTargets(db));

@@ -24,3 +24,51 @@ export interface ImportResult {
   imported: Waypoint[];
   errors: ImportLineError[];
 }
+
+/** bot `hunt` stdout 的一筆 Sighting（格式見 pikmin_bloom_bot 的 cli.md）。 */
+export interface BotSighting {
+  target: string;
+  lat: number;
+  lng: number;
+  spot_name: string;
+  /** 0 = 無人（Unclaimed Mushroom），null = 讀不到。 */
+  participant_count: number | null;
+  /** null = 尚未開始倒數。 */
+  remaining_seconds: number | null;
+  /** 含時區的 ISO 8601。 */
+  observed_at: string;
+  map_position: [number, number];
+  /** run 資料夾內的檔名。 */
+  frame: string | null;
+  postcard: string | null;
+}
+
+/** 存進 SQLite、由後端提供給網頁的 Sighting。 */
+export interface StoredSighting extends BotSighting {
+  id: number;
+  batchId: number;
+  waypointId: number;
+  /** 後端提供的截圖網址；run 資料夾裡沒有該檔就是 null。 */
+  frameUrl: string | null;
+  postcardUrl: string | null;
+}
+
+export type BatchStatus = "running" | "done" | "failed";
+
+export interface TargetSearchParams {
+  listId: number;
+  targets: string[];
+  /** Waypoint 沒有自己的半徑時用這個（公尺）。 */
+  radius: number;
+  /** 0 = 不略過。 */
+  skipCrowded: number;
+}
+
+/** Batch 進行中經 SSE 推給網頁的事件。 */
+export type BatchEvent =
+  | { type: "started"; batchId: number; total: number }
+  | { type: "progress"; index: number; total: number; waypointId: number; label: string }
+  | { type: "stderr"; index: number; line: string }
+  | { type: "sighting"; sighting: StoredSighting }
+  | { type: "waypoint-failed"; index: number; error: string }
+  | { type: "finished"; status: BatchStatus; error?: string };

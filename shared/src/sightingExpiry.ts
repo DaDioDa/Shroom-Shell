@@ -1,4 +1,5 @@
 import type { BotSighting } from "./types.js";
+import { describeSighting } from "./sightingCard.js";
 
 /** 到期時間（epoch 毫秒）= observed_at + remaining_seconds。尚未開始倒數或時間讀不出來時為 null。 */
 export function sightingExpiresAt(s: Pick<BotSighting, "observed_at" | "remaining_seconds">): number | null {
@@ -20,4 +21,17 @@ export function visibleSightings<T extends Pick<BotSighting, "observed_at" | "re
   showAll: boolean,
 ): T[] {
   return showAll ? sightings : sightings.filter((s) => !isSightingExpired(s, nowMs));
+}
+
+/** 地圖標記的樣式與 tooltip：過期的標「已過期」，尚未倒數的帶「N 分鐘前看到」。 */
+export function sightingMarker(
+  s: Pick<BotSighting, "target" | "spot_name" | "observed_at" | "remaining_seconds" | "lat" | "lng" | "participant_count">,
+  nowMs: number,
+): { expired: boolean; tooltip: string } {
+  const expired = isSightingExpired(s, nowMs);
+  const d = describeSighting(s as BotSighting, nowMs);
+  const parts = [`${s.target}｜${s.spot_name}`];
+  if (expired) parts.push("已過期");
+  if (d.seen) parts.push(d.seen);
+  return { expired, tooltip: parts.join("｜") };
 }

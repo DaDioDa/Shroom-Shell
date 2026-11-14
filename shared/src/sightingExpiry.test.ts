@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BotSighting } from "./types.js";
 import { describeSighting } from "./sightingCard.js";
-import { isSightingExpired, sightingExpiresAt, visibleSightings } from "./sightingExpiry.js";
+import { isSightingExpired, sightingExpiresAt, sightingMarker, visibleSightings } from "./sightingExpiry.js";
 
 const base: BotSighting = {
   target: "巨大 輝煌蘑菇",
@@ -69,5 +69,25 @@ describe("「N 分鐘前看到」文字", () => {
   });
   it("時鐘比 observed_at 早（不會顯示負數）", () => {
     expect(describeSighting(s, at("2026-11-14T14:00:00+08:00")).seen).toBe("0 分鐘前看到");
+  });
+});
+
+describe("sightingMarker（地圖標記樣式與 tooltip）", () => {
+  const now = Date.parse("2026-11-14T14:30:00+08:00");
+  it("已過期：expired 樣式，tooltip 標「已過期」", () => {
+    const m = sightingMarker({ ...base, observed_at: "2026-11-14T14:00:00+08:00", remaining_seconds: 60 }, now);
+    expect(m.expired).toBe(true);
+    expect(m.tooltip).toContain("已過期");
+  });
+  it("尚未倒數：tooltip 有「N 分鐘前看到」，隨 now 更新", () => {
+    const s = { ...base, observed_at: "2026-11-14T14:00:00+08:00", remaining_seconds: null };
+    expect(sightingMarker(s, now).tooltip).toContain("30 分鐘前看到");
+    expect(sightingMarker(s, now + 5 * 60_000).tooltip).toContain("35 分鐘前看到");
+    expect(sightingMarker(s, now).expired).toBe(false);
+  });
+  it("倒數中：未過期、不標已過期", () => {
+    const m = sightingMarker({ ...base, observed_at: "2026-11-14T14:00:00+08:00", remaining_seconds: 7200 }, now);
+    expect(m.expired).toBe(false);
+    expect(m.tooltip).not.toContain("已過期");
   });
 });

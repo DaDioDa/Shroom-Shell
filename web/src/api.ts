@@ -1,4 +1,4 @@
-import type { CancelMode, HistoryDetail, HistoryRow, ImportResult, QueueSnapshot, QuietSearchParams, Region, Settings, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
+import type { CancelMode, HistoryDetail, HistoryRow, ImportResult, QueueSnapshot, QuietSearchParams, Region, Settings, StoredSighting, TargetSearchParams, Waypoint, WaypointList } from "@shell/shared";
 
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -19,6 +19,7 @@ export const api = {
   renameList: (id: number, name: string) => call<WaypointList>("PATCH", `/api/lists/${id}`, { name }),
   deleteList: (id: number) => call<void>("DELETE", `/api/lists/${id}`),
   waypoints: (id: number) => call<Waypoint[]>("GET", `/api/lists/${id}/waypoints`),
+  sightings: () => call<StoredSighting[]>("GET", "/api/sightings"),
   queue: () => call<QueueSnapshot>("GET", "/api/queue"),
   cancelBatch: (id: number, mode: CancelMode) => call<{ ok: true }>("POST", `/api/batches/${id}/cancel`, { mode }),
   targets: () => call<string[]>("GET", "/api/targets"),

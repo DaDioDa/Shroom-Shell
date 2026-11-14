@@ -68,3 +68,22 @@ export function reduceBatchView(v: BatchView, e: BatchEvent): BatchView {
       return { ...v, status: e.status, error: e.error ?? null };
   }
 }
+
+/** 三個功能分頁共用的狀態文字（queued、running、done、cancelled、failed 都要正確）。 */
+export function batchStatusText(v: BatchView, found?: number): string {
+  const hits = found === undefined ? "" : `，找到 ${found} 筆`;
+  switch (v.status) {
+    case "queued":
+      return `排隊中：前面還有 ${v.queuePosition ?? 1} 個 Batch，輪到才會開始`;
+    case "running":
+      return `進度：第 ${v.index} / ${v.total} 個 Waypoint${v.label ? `（${v.label}）` : ""}`;
+    case "done":
+      return `完成：共 ${v.total} 個 Waypoint${hits}`;
+    case "cancelled":
+      return `已取消：跑了 ${v.index} / ${v.total} 個 Waypoint${hits}${v.error ? `。${v.error}` : ""}`;
+    case "failed":
+      return `失敗：${v.error ?? "未知錯誤"}`;
+    default:
+      return "";
+  }
+}

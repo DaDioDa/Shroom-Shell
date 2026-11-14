@@ -87,6 +87,12 @@ export function listSightings(db: Db, batchId: number, runsDir: string): StoredS
   return rows.map((r) => toStored(r, runsDir));
 }
 
+/** 所有 Batch 的 Sighting（地圖用，新的在前）。 */
+export function listAllSightings(db: Db, runsDir: string): StoredSighting[] {
+  const rows = db.prepare(`${SELECT_SIGHTING} ORDER BY s.id DESC`).all() as unknown as SightingRow[];
+  return rows.map((r) => toStored(r, runsDir));
+}
+
 export function rememberTargets(db: Db, targets: string[]): void {
   const now = new Date().toISOString();
   const up = db.prepare(

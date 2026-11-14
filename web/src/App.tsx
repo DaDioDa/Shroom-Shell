@@ -3,6 +3,7 @@ import { describePostcardCheck, featureName, sweepAreaColor, visibleSightings, t
 import { api } from "./api.js";
 import { WaypointMap, type CheckMark, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
+import { CellPanel, type CellInfo } from "./CellPanel.js";
 import { DiscoveryPanel } from "./DiscoveryPanel.js";
 import { ListManager } from "./ListManager.js";
 import { HistoryPanel } from "./HistoryPanel.js";
@@ -32,6 +33,15 @@ export function App() {
   const { views, follow } = useBatchViews();
   const now = useNow();
   const [historyDetail, setHistoryDetail] = useState<HistoryDetail | null>(null);
+  // 探索區域分頁跟隨的 Discovery Batch 的 Region／半徑／間距／名稱（從歷史詳情取）。
+  const [discoveryDetail, setDiscoveryDetail] = useState<HistoryDetail | null>(null);
+  const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
+  const discoveryBatchId = views.discovery.batchId;
+  useEffect(() => {
+    if (discoveryBatchId === null) return setDiscoveryDetail(null);
+    void api.historyDetail(discoveryBatchId).then(setDiscoveryDetail).catch(() => {});
+  }, [discoveryBatchId, views.discovery.status]);
+  useEffect(() => setSelectedCell(null), [historyDetail?.id, discoveryBatchId]);
   const batchFeature = TAB_BATCH[tab] ?? null;
   // 目前分頁的 BatchView；歷史分頁沒有，用一個空的。
   const view = batchFeature ? views[batchFeature] : views["quiet-search"];
@@ -108,10 +118,18 @@ export function App() {
   const mapWaypoints = feature ? waypoints : [];
 
   // Quiet Giant Search 的結果：用執行當時記下的點（不回查目前清單），以它為中心、邊長 2R 的正方形。
-  const sweepSource = tab === "history" ? (historyDetail?.waypoints.flatMap((w) => (w.quiet ? [{ point: w.point, radius: w.quiet.radius, result: w.quiet.result }] : [])) ?? []) : tab === "quiet" || tab === "discovery" ? view.quietResults : [];
-  const areas: SweepArea[] = sweepSource.flatMap((o) => {
-    return [{ lat: o.point.lat, lng: o.point.lng, radius: o.radius, color: sweepAreaColor(o.result.verdict), tooltip: o.result.reason }];
+  const sweepSource = tab === "history" ? (historyDetail?.waypoints.flatMap((w) => (w.quiet ? [{ index: w.index, point: w.point, radius: w.quiet.radius, result: w.quiet.result }] : [])) ?? []) : tab === "quiet" || tab === "discovery" ? view.quietResults : [];
+  // Discovery（探索區域分頁或歷史裡的 Discovery Batch）：畫 Region 外框，格子可點。
+  const discoveryInfo = tab === "history" ? (historyDetail?.discovery ?? null) : tab === "discovery" && discoveryDetail?.id === discoveryBatchId ? (discoveryDetail?.discovery ?? null) : null;
+  const areas: SweepArea[] = sweepSource.flatMap((o, i) => {
+    return [{ lat: o.point.lat, lng: o.point.lng, radius: o.radius, color: sweepAreaColor(o.result.verdict), tooltip: o.result.reason, ...(discoveryInfo ? { id: i } : {}) }];
   });
+  const clickCell = (i: number) => {
+    const o = sweepSource[i];
+    if (!o || !discoveryInfo) return;
+    setSelectedCell({ regionName: discoveryInfo.name, number: o.index, lat: o.point.lat, lng: o.point.lng, radius: o.radius, verdict: o.result.verdict, reason: o.result.reason });
+  };
+  const discoveryBusy = views.discovery.status === "running" || views.discovery.status === "queued";
 
   const checkSource = tab === "history" ? (historyDetail?.waypoints.flatMap((w) => (w.check ? [w.check] : [])) ?? []) : tab === "postcard" ? view.checkResults : [];
   const checkMarks: CheckMark[] = checkSource.flatMap((o) => {
@@ -124,7 +142,7 @@ export function App() {
   const mapSightings = tab === "target" ? tabSightings : tab === "history" ? (historyDetail?.waypoints.flatMap((w) => w.sightings) ?? []) : [];
 
   const tabButton = (t: Tab, label: string) => (
-    <button className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
+    <button className={tab === t ? "active" : ""} onClick={() => (setTab(t), setSelectedCell(null))}>
       {label}
     </button>
   );
@@ -137,8 +155,9 @@ export function App() {
         now={now}
         areas={areas}
         checkMarks={checkMarks}
-        region={tab === "discovery" ? region : null}
-        drawing={tab === "discovery" && drawing}
+        region={tab === "discovery" ? (region ?? discoveryInfo?.region ?? null) : tab === "history" ? (discoveryInfo?.region ?? null) : null}
+        drawing={tab === "discovery" && drawing && !discoveryBusy}
+        onAreaClick={clickCell}
         onRegionDrawn={(r) => (setRegion(r), setDrawing(false))}
         onMapClick={feature && selectedId !== null ? addAt : undefined}
         onMarkerEdit={edit}
@@ -171,9 +190,10 @@ export function App() {
             onMove={move}
           />
         )}
+        {selectedCell && (tab === "discovery" || tab === "history") && <CellPanel cell={selectedCell} onClose={() => setSelectedCell(null)} onAdded={() => void refreshLists("quiet-search")} />}
         {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} onStarted={(id) => follow("quiet-search", id)} />}
         {tab === "discovery" && (
-          <DiscoveryPanel region={region} drawing={drawing} onDraw={() => setDrawing(true)} view={view} onStarted={async (batchId) => follow("discovery", batchId)} />
+          <DiscoveryPanel region={region} drawing={drawing} onDraw={() => setDrawing(true)} view={view} onStarted={(batchId) => (setRegion(null), follow("discovery", batchId))} />
         )}
         {tab === "postcard" && <PostcardCheckPanel list={selected} waypoints={waypoints} view={view} onStarted={(id) => follow("postcard-check", id)} />}
         {tab === "history" && <HistoryPanel refreshKey={BATCH_FEATURES.map((f) => views[f].status).join()} onDetail={setHistoryDetail} />}

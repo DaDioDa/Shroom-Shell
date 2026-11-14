@@ -29,8 +29,8 @@ export const api = {
   settings: () => call<Settings>("GET", "/api/settings"),
   saveSettings: (s: Settings) => call<Settings>("PUT", "/api/settings", s),
   quietStats: () => call<{ avgMsPerPoint: number | null }>("GET", "/api/quiet-stats"),
-  startDiscovery: (p: { name: string; region: Region; radius: number; spacing: number; confirmed?: boolean }) =>
-    call<{ batchId: number; listId: number }>("POST", "/api/batches/discovery", p),
+  startDiscovery: (p: { name?: string; region: Region; radius: number; spacing: number; confirmed?: boolean }) =>
+    call<{ batchId: number }>("POST", "/api/batches/discovery", p),
   history: (feature?: string) => call<HistoryRow[]>("GET", feature ? `/api/history?feature=${feature}` : "/api/history"),
   historyDetail: (id: number) => call<HistoryDetail>("GET", `/api/history/${id}`),
   deleteBatch: (id: number) => call<void>("DELETE", `/api/batches/${id}`),

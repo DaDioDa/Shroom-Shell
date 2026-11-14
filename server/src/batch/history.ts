@@ -1,5 +1,5 @@
 import { rmSync } from "node:fs";
-import { sweepRadius, type HistoryDetail, type HistoryRow, type BatchPoint, type HistoryWaypoint, type CheckResult, type QuietResult } from "@shell/shared";
+import { sweepRadius, type HistoryDetail, type HistoryRow, type BatchPoint, type HistoryWaypoint, type CheckResult, type QuietResult, type Region } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { safeRunPath } from "./runPath.js";
 import { listSightings } from "./store.js";
@@ -81,11 +81,14 @@ function summarize(db: Db, b: BatchRow): string {
   return `${total} 個 Waypoint，找到 ${n} 筆 Sighting`;
 }
 
+/** Discovery 沒有清單，列表上顯示 Region 名稱（params 裡的 name）。 */
+const regionName = (b: BatchRow): string | null => (b.feature === "discovery" ? parseJson<{ name?: string }>(b.params)?.name ?? null : null);
+
 const toRow = (db: Db, b: BatchRow): HistoryRow => ({
   id: b.id,
   feature: b.feature,
   listId: b.list_id,
-  listName: b.list_name,
+  listName: b.list_name ?? regionName(b),
   status: b.status,
   error: b.error,
   createdAt: b.created_at,
@@ -130,7 +133,13 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
       quiet: stored ? { radius, result: result as QuietResult } : null,
     };
   });
-  return { ...toRow(db, b), params, waypoints };
+  const discovery = b.feature === "discovery" ? parseJson<{ region: Region; radius: number; spacing: number; regionName?: string; name?: string }>(b.params) : null;
+  return {
+    ...toRow(db, b),
+    params,
+    discovery: discovery ? { name: discovery.name ?? discovery.regionName ?? "", region: discovery.region, radius: discovery.radius, spacing: discovery.spacing } : null,
+    waypoints,
+  };
 }
 
 export type DeleteOutcome = "deleted" | "not-found" | "busy";

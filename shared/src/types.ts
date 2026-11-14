@@ -1,4 +1,5 @@
 import type { CheckOutcome } from "./postcardCheck.js";
+import type { Region } from "./discovery.js";
 
 /** Waypoint List 所屬的功能：建立時決定，之後不能改。 */
 export const LIST_FEATURES = ["postcard-check", "quiet-search", "target-search"] as const;
@@ -90,7 +91,8 @@ export type CancelMode = "after-waypoint" | "force";
 export interface QueueItem {
   batchId: number;
   feature: string;
-  listId: number;
+  /** Discovery 沒有清單，是 null；listName 那時是 Region 名稱。 */
+  listId: number | null;
   listName: string;
 }
 
@@ -182,7 +184,17 @@ export interface HistoryWaypoint {
   check: CheckOutcome | null;
 }
 
+/** Discovery Batch 的 params：Region、半徑、間距、名稱（沒有清單）。 */
+export interface DiscoveryParams {
+  region: Region;
+  radius: number;
+  spacing: number;
+  name: string;
+}
+
 export interface HistoryDetail extends HistoryRow {
   params: unknown;
+  /** 只有 Discovery 才有。 */
+  discovery: DiscoveryParams | null;
   waypoints: HistoryWaypoint[];
 }

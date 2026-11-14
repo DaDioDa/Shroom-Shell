@@ -7,7 +7,7 @@ interface Props {
   drawing: boolean;
   onDraw: () => void;
   view: BatchView;
-  onStarted: (batchId: number, listId: number) => void;
+  onStarted: (batchId: number) => void;
 }
 
 const fmtDuration = (ms: number) => {
@@ -21,6 +21,7 @@ export function DiscoveryPanel({ region, drawing, onDraw, view, onStarted }: Pro
   const [spacing, setSpacing] = useState(1000);
   const [avg, setAvg] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const log = useRef<HTMLPreElement>(null);
   useEffect(() => void api.quietStats().then((s) => setAvg(s.avgMsPerPoint)).catch(() => {}), [view.status]);
   useEffect(() => {
@@ -30,15 +31,15 @@ export function DiscoveryPanel({ region, drawing, onDraw, view, onStarted }: Pro
   const plan = region ? planDiscovery({ region, spacingM: spacing, avgMsPerPoint: avg }) : null;
   const size = region ? regionSizeKm(region) : null;
   const running = view.status === "running";
-  const canStart = !!plan?.ok && name.trim() !== "" && radius > 0;
+  const canStart = !!plan?.ok && radius > 0;
 
   const start = async () => {
     if (!region || !plan?.ok) return;
-    if (plan.needsConfirm && !window.confirm(`這會跑 ${plan.points.length} 個點，預估 ${fmtDuration(plan.estimateMs)}。確定要開始？`)) return;
     setError(null);
+    setConfirming(false);
     try {
-      const r = await api.startDiscovery({ name: name.trim(), region, radius, spacing, confirmed: plan.needsConfirm });
-      onStarted(r.batchId, r.listId);
+      const r = await api.startDiscovery({ ...(name.trim() ? { name: name.trim() } : {}), region, radius, spacing, confirmed: plan.needsConfirm });
+      onStarted(r.batchId);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -58,7 +59,7 @@ export function DiscoveryPanel({ region, drawing, onDraw, view, onStarted }: Pro
       )}
       <div>
         <label>
-          Region 名稱 <input value={name} placeholder="例如：大安區" onChange={(e) => setName(e.target.value)} />
+          Region 名稱 <input value={name} placeholder="留空會自動命名（探索 日期 時間）" onChange={(e) => setName(e.target.value)} />
         </label>
       </div>
       <div>
@@ -79,11 +80,18 @@ export function DiscoveryPanel({ region, drawing, onDraw, view, onStarted }: Pro
           {plan.needsConfirm && "。超過 30 點，開始前會再確認一次"}
         </p>
       )}
-      <button disabled={!canStart || running} onClick={start}>
-        開始
-      </button>
+      {confirming && plan?.ok ? (
+        <p>
+          這會跑 {plan.points.length} 個點，預估 {fmtDuration(plan.estimateMs)}。確定要開始？{" "}
+          <button onClick={start}>確定開始</button> <button onClick={() => setConfirming(false)}>取消</button>
+        </p>
+      ) : (
+        <button disabled={!canStart || running} onClick={() => (plan?.ok && plan.needsConfirm ? setConfirming(true) : void start())}>
+          開始
+        </button>
+      )}
       {error && <p className="errors">{error}</p>}
-      <p className="muted">結果：綠＝是（會自動加進「Discovery：{name.trim() || "名稱"}」清單）、紅＝不是、灰＝無法判斷。</p>
+      <p className="muted">結果：綠＝是、紅＝不是、灰＝無法判斷。點格子看原因；綠格可以自己選要不要加入無人巨菇清單。</p>
       {view.status !== "idle" && (
         <>
           <p>

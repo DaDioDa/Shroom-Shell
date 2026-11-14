@@ -17,6 +17,8 @@ export interface SweepArea {
   radius: number;
   color: SweepAreaColor;
   tooltip?: string;
+  /** 點方格時回報給 onAreaClick 的識別（Discovery 的 Grid Cell 用）。 */
+  id?: number;
 }
 
 const AREA_COLORS: Record<SweepAreaColor, string> = { green: "#2f9e44", red: "#e03131", gray: "#868e96" };
@@ -32,6 +34,7 @@ export function WaypointMap({
   region = null,
   drawing = false,
   onRegionDrawn,
+  onAreaClick,
   now = Date.now(),
 }: {
   waypoints: Waypoint[];
@@ -46,11 +49,15 @@ export function WaypointMap({
   /** true＝拖曳畫矩形（此時不能拖地圖）。 */
   drawing?: boolean;
   onRegionDrawn?: (r: Region) => void;
+  /** 點 Sweep 方格（有 id 的才可點）。 */
+  onAreaClick?: (id: number) => void;
   /** 判斷 Sighting 是否過期用的現在時間。 */
   now?: number;
 }) {
   const drawnRef = useRef(onRegionDrawn);
   drawnRef.current = onRegionDrawn;
+  const areaClickRef = useRef(onAreaClick);
+  areaClickRef.current = onAreaClick;
   const regionLayer = useRef<L.LayerGroup | null>(null);
   const clickRef = useRef({ onMapClick, onMarkerEdit, onMarkerDelete });
   clickRef.current = { onMapClick, onMarkerEdit, onMarkerDelete };
@@ -139,6 +146,13 @@ export function WaypointMap({
       const color = AREA_COLORS[a.color];
       const rect = L.rectangle([[b.south, b.west], [b.north, b.east]], { color, fillColor: color, fillOpacity: 0.25, weight: 2 }).addTo(g);
       if (a.tooltip) rect.bindTooltip(a.tooltip);
+      if (a.id !== undefined) {
+        const id = a.id;
+        rect.on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          areaClickRef.current?.(id);
+        });
+      }
     }
   }, [areas]);
 

@@ -1,5 +1,7 @@
 # Spec：pikmin_bloom_shell 本機網頁 App
 
+> 「Discovery」「Waypoint List 管理」「地圖與畫面」三段已由 `.scratch/feature-split-ux/spec.md` 修改；兩者衝突時以新 spec 為準。
+
 術語依 `GLOSSARY.md`。bot 的用法以 `F:\pikmin_bloom_bot\docs\cli.md` 為準，本 spec 只寫本 App 怎麼用它。
 
 ## 目的

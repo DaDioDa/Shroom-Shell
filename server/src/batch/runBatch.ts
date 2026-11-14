@@ -16,6 +16,8 @@ export interface BatchDeps {
   /** Teleport 後等多久才呼叫 bot。 */
   waitMs: number;
   runsDir: string;
+  /** Batch 的狀態寫成結束之後、通知前端之前呼叫（例如檢查 run 資料夾上限）。失敗不影響 Batch。 */
+  onFinished?: (batchId: number) => void;
 }
 
 /**
@@ -144,5 +146,10 @@ export async function runBatch(
   const status = error ? "failed" : cancelled ? "cancelled" : "done";
   const note = error ?? (cancelled && control.mode === "force" ? FORCE_NOTE : null);
   finishBatch(deps.db, batchId, status, note);
+  try {
+    deps.onFinished?.(batchId);
+  } catch (e) {
+    console.error("Batch 結束後的收尾失敗：", errorMessage(e));
+  }
   deps.hub.emit(batchId, note ? { type: "finished", status, error: note } : { type: "finished", status });
 }

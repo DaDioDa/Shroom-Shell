@@ -2,7 +2,7 @@ import { createReadStream, existsSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import type { FastifyInstance } from "fastify";
-import type { CancelMode, QuietSearchParams, TargetSearchParams, Waypoint } from "@shell/shared";
+import type { CancelMode, QuietSearchParams, Settings, TargetSearchParams, Waypoint } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { BatchHub } from "./hub.js";
 import { BatchQueue } from "./queue.js";
@@ -10,7 +10,8 @@ import { runBatch, type BatchDeps, type BatchFeature } from "./runBatch.js";
 import { createBatch, finishBatch, getBatch, listSightings, listTargets, rememberTargets } from "./store.js";
 import { quietSearchFeature } from "./quietSearch.js";
 import { targetSearchFeature } from "./targetSearch.js";
-import { deleteBatch, getHistory, listHistory } from "./history.js";
+import { BUSY_STATUSES, deleteBatch, getHistory, listHistory } from "./history.js";
+import { enforceRunsLimit, getRunsLimit, setRunsLimit } from "./retention.js";
 
 function parseParams(body: unknown): TargetSearchParams | null {
   const b = (body ?? {}) as Record<string, unknown>;
@@ -21,14 +22,34 @@ function parseParams(body: unknown): TargetSearchParams | null {
   return { listId: b.listId, targets, radius: b.radius, skipCrowded: b.skipCrowded };
 }
 
-export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<BatchDeps, "hub" | "db">): void {
+export function registerBatchRoutes(
+  app: FastifyInstance,
+  db: Db,
+  deps: Omit<BatchDeps, "hub" | "db" | "onFinished"> & { runsLimitBytes: number },
+): void {
   const hub = new BatchHub();
-  const full: BatchDeps = { ...deps, db, hub };
+  const full: BatchDeps = { ...deps, db, hub, onFinished: () => sweepRuns() };
+
+  /** 超過上限就清最舊的 run 資料夾。執行中／排隊中的 Batch 不動。 */
+  function sweepRuns() {
+    const busy = db.prepare(`SELECT id FROM batches WHERE status IN (${BUSY_STATUSES.map(() => "?").join(",")})`).all(...BUSY_STATUSES) as unknown as { id: number }[];
+    enforceRunsLimit({ db, runsDir: deps.runsDir, limitBytes: getRunsLimit(db, deps.runsLimitBytes), busyBatchIds: new Set(busy.map((b) => b.id)) });
+  }
   const queue = new BatchQueue();
   // 上次伺服器結束時還沒跑完的 Batch 不會再繼續；標成失敗，免得永遠卡在排隊／執行中。
   db.prepare("UPDATE batches SET status = 'failed', error = ?, finished_at = ? WHERE status IN ('queued', 'running')").run(
     "伺服器重新啟動，這個 Batch 被中斷", new Date().toISOString(),
   );
+  sweepRuns(); // 啟動時檢查一次
+
+  app.get("/api/settings", async (): Promise<Settings> => ({ runsLimitBytes: getRunsLimit(db, deps.runsLimitBytes) }));
+  app.put("/api/settings", async (req, reply) => {
+    const v = ((req.body ?? {}) as { runsLimitBytes?: unknown }).runsLimitBytes;
+    if (typeof v !== "number" || !Number.isFinite(v) || !(v > 0)) return reply.code(400).send({ error: "runsLimitBytes 要是大於 0 的數字" });
+    setRunsLimit(db, v);
+    sweepRuns();
+    return { runsLimitBytes: v } satisfies Settings;
+  });
 
   app.post("/api/batches/target-search", async (req, reply) => {
     const body = parseParams(req.body);

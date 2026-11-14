@@ -19,6 +19,7 @@ interface SightingRow {
   frame: string | null;
   postcard: string | null;
   run_dir: string | null;
+  images_cleared: number;
 }
 
 /** run 資料夾裡有這個檔才給網址（檔案被清掉或 bot 沒截到就是 null）。 */
@@ -44,7 +45,10 @@ const toStored = (r: SightingRow, runsDir: string): StoredSighting => ({
   postcard: r.postcard,
   frameUrl: runFileUrl(runsDir, r.run_dir, r.frame),
   postcardUrl: runFileUrl(runsDir, r.run_dir, r.postcard),
+  imagesCleared: r.images_cleared === 1,
 });
+
+const SELECT_SIGHTING = "SELECT s.*, b.images_cleared FROM sightings s JOIN batches b ON b.id = s.batch_id";
 
 export function createBatch(db: Db, feature: string, params: { listId: number }, status: BatchStatus = "queued"): number {
   const r = db
@@ -75,11 +79,11 @@ export function saveSighting(
 }
 
 export function getSighting(db: Db, id: number, runsDir: string): StoredSighting {
-  return toStored(db.prepare("SELECT * FROM sightings WHERE id = ?").get(id) as unknown as SightingRow, runsDir);
+  return toStored(db.prepare(`${SELECT_SIGHTING} WHERE s.id = ?`).get(id) as unknown as SightingRow, runsDir);
 }
 
 export function listSightings(db: Db, batchId: number, runsDir: string): StoredSighting[] {
-  const rows = db.prepare("SELECT * FROM sightings WHERE batch_id = ? ORDER BY id").all(batchId) as unknown as SightingRow[];
+  const rows = db.prepare(`${SELECT_SIGHTING} WHERE s.batch_id = ? ORDER BY s.id`).all(batchId) as unknown as SightingRow[];
   return rows.map((r) => toStored(r, runsDir));
 }
 

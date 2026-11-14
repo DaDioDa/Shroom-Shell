@@ -1,21 +1,26 @@
 html, body, #root { height: 100%; margin: 0; font-family: system-ui, sans-serif; }
 .layout { display: flex; height: 100%; }
 .map { flex: 1; }
-.panel { width: 340px; padding: 12px; overflow-y: auto; border-left: 1px solid #ccc; box-sizing: border-box; }
+.panel { width: 340px; padding: 12px; overflow-y: auto; overflow-x: hidden; overflow-wrap: anywhere; border-left: 1px solid #ccc; box-sizing: border-box; }
 .panel textarea { width: 100%; height: 120px; box-sizing: border-box; }
+.panel input:not([type=checkbox]):not([type=radio]), .panel select { max-width: 100%; box-sizing: border-box; }
+.panel img { max-width: 100%; height: auto; }
+.panel table { max-width: 100%; table-layout: fixed; }
+.panel pre { max-width: 100%; white-space: pre-wrap; }
 .panel ul { padding-left: 0; list-style: none; }
 .panel li.selected { font-weight: bold; }
 .errors { color: #b00020; font-size: 13px; }
-.tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 .tabs button.active { font-weight: bold; border-bottom: 2px solid #1971c2; }
 .chip { display: inline-block; background: #e7f5ff; border-radius: 10px; padding: 0 8px; margin: 2px; }
-.log { background: #1e1e1e; color: #ddd; font-size: 12px; max-height: 160px; overflow: auto; white-space: pre-wrap; padding: 6px; }
+.log { background: #1e1e1e; color: #ddd; font-size: 12px; max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 6px; }
 .card { border: 1px solid #ccc; border-radius: 6px; padding: 8px; margin: 8px 0; font-size: 14px; }
 .card.expired { opacity: 0.6; }
-.card .shots { display: flex; gap: 6px; margin-top: 6px; }
+.card .shots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .card .shots img { max-width: 140px; max-height: 140px; border: 1px solid #ddd; }
 .drawer { position: fixed; left: 0; right: 340px; bottom: 0; background: #f8f9fa; border-top: 1px solid #ccc; padding: 6px 12px; font-size: 13px; z-index: 1000; }
-.drawer .row { display: flex; gap: 8px; align-items: center; margin: 2px 0; }
+.drawer { overflow-wrap: anywhere; }
+.drawer .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 2px 0; }
 .drawer button.danger { color: #b00020; }
 .muted { color: #888; font-size: 12px; }
 .card.check.found { border-left: 6px solid #2f9e44; }

@@ -50,9 +50,49 @@ export function App() {
     await refreshLists();
   };
 
+  const reload = async () => {
+    if (selectedId === null) return;
+    setWaypoints(await api.waypoints(selectedId));
+    await refreshLists();
+  };
+  const addAt = async (lat: number, lng: number) => {
+    if (selectedId === null) return;
+    await api.addWaypoint(selectedId, lat, lng);
+    await reload();
+  };
+  const edit = async (w: Waypoint) => {
+    const label = window.prompt("標籤", w.label);
+    if (label === null) return;
+    const radiusText = window.prompt("半徑（公尺，留空＝未設定）", w.radius?.toString() ?? "");
+    if (radiusText === null) return;
+    const spotName = window.prompt("Spot Name（留空＝未設定）", w.spotName ?? "");
+    if (spotName === null) return;
+    const radius = radiusText.trim() === "" ? null : Number(radiusText);
+    if (radius !== null && !(radius > 0)) return void window.alert("半徑要是正數");
+    await api.updateWaypoint(w.id, { label, radius, spotName });
+    await reload();
+  };
+  const removeWaypoint = async (w: Waypoint) => {
+    if (!window.confirm(`刪除「${w.label || `${w.lat}, ${w.lng}`}」？`)) return;
+    await api.deleteWaypoint(w.id);
+    await reload();
+  };
+  const move = async (index: number, delta: -1 | 1) => {
+    if (selectedId === null) return;
+    const ids = waypoints.map((w) => w.id);
+    const j = index + delta;
+    if (j < 0 || j >= ids.length) return;
+    [ids[index], ids[j]] = [ids[j], ids[index]];
+    setWaypoints(await api.reorder(selectedId, ids));
+  };
+
   return (
     <div className="layout">
-      <WaypointMap waypoints={waypoints} />
+      <WaypointMap
+        waypoints={waypoints}
+        onMapClick={selectedId === null ? undefined : addAt}
+        onMarkerClick={edit}
+      />
       <div className="panel">
         <h3>Waypoint List</h3>
         <input value={newName} placeholder="新清單名稱" onChange={(e) => setNewName(e.target.value)} />
@@ -69,10 +109,23 @@ export function App() {
         </ul>
         {selected && (
           <>
+            <h4>Waypoint（點地圖新增、點標記編輯）</h4>
+            <ol>
+              {waypoints.map((w, i) => (
+                <li key={w.id}>
+                  {w.label || `${w.lat}, ${w.lng}`}
+                  {w.spotName ? `〔${w.spotName}〕` : ""}
+                  {w.radius !== null ? ` r=${w.radius}` : ""}{" "}
+                  <button disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+                  <button disabled={i === waypoints.length - 1} onClick={() => move(i, 1)}>↓</button>{" "}
+                  <button onClick={() => edit(w)}>編輯</button> <button onClick={() => removeWaypoint(w)}>刪除</button>
+                </li>
+              ))}
+            </ol>
             <h4>匯入到「{selected.name}」</h4>
             <textarea
               value={text}
-              placeholder={"每行 lat,lng [標籤]\n25.033964,121.564468 台北 101"}
+              placeholder={"每行 lat,lng [標籤] 或 Google Maps 連結\n25.033964,121.564468 台北 101"}
               onChange={(e) => setText(e.target.value)}
             />
             <button onClick={doImport}>匯入</button>

@@ -55,7 +55,23 @@ export interface StoredSighting extends BotSighting {
   postcardUrl: string | null;
 }
 
-export type BatchStatus = "running" | "done" | "failed";
+/** queued＝排隊中；cancelled＝被取消（排隊時移出、跑完這點就停、強制停止）。 */
+export type BatchStatus = "queued" | "running" | "done" | "failed" | "cancelled";
+
+/** 取消方式：after-waypoint＝跑完目前這點就停；force＝立刻 kill bot。 */
+export type CancelMode = "after-waypoint" | "force";
+
+export interface QueueItem {
+  batchId: number;
+  feature: string;
+  listId: number;
+  listName: string;
+}
+
+export interface QueueSnapshot {
+  running: QueueItem | null;
+  queued: QueueItem[];
+}
 
 export interface TargetSearchParams {
   listId: number;
@@ -68,9 +84,10 @@ export interface TargetSearchParams {
 
 /** Batch 進行中經 SSE 推給網頁的事件。 */
 export type BatchEvent =
+  | { type: "queued"; batchId: number; position: number }
   | { type: "started"; batchId: number; total: number }
   | { type: "progress"; index: number; total: number; waypointId: number; label: string }
   | { type: "stderr"; index: number; line: string }
   | { type: "sighting"; sighting: StoredSighting }
-  | { type: "waypoint-failed"; index: number; error: string }
+  | { type: "waypoint-failed"; index: number; error: string; screenshotUrl?: string }
   | { type: "finished"; status: BatchStatus; error?: string };

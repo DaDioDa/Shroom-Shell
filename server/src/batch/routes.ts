@@ -2,11 +2,13 @@ import { createReadStream, existsSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import type { FastifyInstance } from "fastify";
-import type { TargetSearchParams, Waypoint } from "@shell/shared";
+import type { CancelMode, TargetSearchParams, Waypoint } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { BatchHub } from "./hub.js";
-import { createBatch, getBatch, listSightings, listTargets, rememberTargets } from "./store.js";
-import { runTargetSearch, type BatchDeps } from "./targetSearch.js";
+import { BatchQueue } from "./queue.js";
+import { runBatch, type BatchDeps } from "./runBatch.js";
+import { createBatch, finishBatch, getBatch, listSightings, listTargets, rememberTargets } from "./store.js";
+import { targetSearchFeature } from "./targetSearch.js";
 
 function parseParams(body: unknown): TargetSearchParams | null {
   const b = (body ?? {}) as Record<string, unknown>;
@@ -20,6 +22,11 @@ function parseParams(body: unknown): TargetSearchParams | null {
 export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<BatchDeps, "hub" | "db">): void {
   const hub = new BatchHub();
   const full: BatchDeps = { ...deps, db, hub };
+  const queue = new BatchQueue();
+  // 上次伺服器結束時還沒跑完的 Batch 不會再繼續；標成失敗，免得永遠卡在排隊／執行中。
+  db.prepare("UPDATE batches SET status = 'failed', error = ?, finished_at = ? WHERE status IN ('queued', 'running')").run(
+    "伺服器重新啟動，這個 Batch 被中斷", new Date().toISOString(),
+  );
 
   app.post("/api/batches/target-search", async (req, reply) => {
     const body = parseParams(req.body);
@@ -32,9 +39,32 @@ export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<Bat
       .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius FROM waypoints WHERE list_id = ? ORDER BY position, id")
       .all(body.listId) as unknown as Waypoint[];
     const batchId = createBatch(db, "target-search", body);
+    const listName = (db.prepare("SELECT name FROM waypoint_lists WHERE id = ?").get(body.listId) as { name: string }).name;
     hub.open(batchId);
-    void runTargetSearch(full, batchId, body, waypoints);
+    const feature = targetSearchFeature(body);
+    const position = queue.enqueue({
+      item: { batchId, feature: "target-search", listId: body.listId, listName },
+      run: (control) => runBatch(full, batchId, feature, waypoints, control),
+      onRemoved: () => cancelQueued(batchId),
+    });
+    if (position > 0) hub.emit(batchId, { type: "queued", batchId, position });
     return reply.code(201).send({ batchId });
+  });
+
+  function cancelQueued(batchId: number) {
+    finishBatch(db, batchId, "cancelled", "在排隊時被移出佇列");
+    hub.emit(batchId, { type: "finished", status: "cancelled", error: "在排隊時被移出佇列" });
+  }
+
+  app.get("/api/queue", async () => queue.snapshot());
+
+  app.post<{ Params: { id: string } }>("/api/batches/:id/cancel", async (req, reply) => {
+    const id = Number(req.params.id);
+    const mode = ((req.body ?? {}) as { mode?: unknown }).mode ?? "after-waypoint";
+    if (mode !== "after-waypoint" && mode !== "force") return reply.code(400).send({ error: "mode 只能是 after-waypoint 或 force" });
+    if (!getBatch(db, id)) return reply.code(404).send({ error: "找不到 Batch" });
+    if (queue.cancel(id, mode as CancelMode) === "unknown") return reply.code(409).send({ error: "這個 Batch 已經結束" });
+    return { ok: true };
   });
 
   app.get("/api/targets", async () => listTargets(db));

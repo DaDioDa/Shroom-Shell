@@ -35,7 +35,7 @@ describe("既有的 data/app.db", () => {
     const app = buildApp({
       dataDir: dir,
       bot: { run: async () => ({ exitCode: 0, stdout: "[]", runDir: null }) },
-      device: { teleport: async () => {}, stop: async () => {} },
+      device: { teleport: async () => {}, stop: async () => {}, otherActiveMockApps: async () => [] },
       waitMs: 0,
     });
     expect((await app.inject("/api/lists")).json()).toEqual([{ id: 1, name: "舊清單", waypointCount: 1 }]);

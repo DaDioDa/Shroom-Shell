@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ImportLineError, Waypoint, WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap } from "./Map.js";
+import { BatchDrawer } from "./BatchDrawer.js";
 import { TargetSearchPanel } from "./TargetSearchPanel.js";
 import { useBatchView } from "./useBatchView.js";
 
@@ -160,6 +161,7 @@ export function App() {
         )}
         </>}
       </div>
+      <BatchDrawer onFollow={follow} />
     </div>
   );
 }

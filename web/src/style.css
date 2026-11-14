@@ -14,4 +14,7 @@ html, body, #root { height: 100%; margin: 0; font-family: system-ui, sans-serif;
 .card.expired { opacity: 0.6; }
 .card .shots { display: flex; gap: 6px; margin-top: 6px; }
 .card .shots img { max-width: 140px; max-height: 140px; border: 1px solid #ddd; }
+.drawer { position: fixed; left: 0; right: 340px; bottom: 0; background: #f8f9fa; border-top: 1px solid #ccc; padding: 6px 12px; font-size: 13px; z-index: 1000; }
+.drawer .row { display: flex; gap: 8px; align-items: center; margin: 2px 0; }
+.drawer button.danger { color: #b00020; }
 .muted { color: #888; font-size: 12px; }

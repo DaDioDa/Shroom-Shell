@@ -37,4 +37,20 @@ describe("reduceBatchView", () => {
     const next = reduceBatchView(done, { type: "started", batchId: 2, total: 5 });
     expect(next).toMatchObject({ batchId: 2, status: "running", total: 5, stderr: [], sightings: [], error: null });
   });
+
+  it("queued：排隊中、記下順位；輪到時 started 變 running", () => {
+    const q = run([{ type: "queued", batchId: 4, position: 2 }]);
+    expect(q).toMatchObject({ batchId: 4, status: "queued", queuePosition: 2 });
+    expect(reduceBatchView(q, { type: "started", batchId: 4, total: 3 })).toMatchObject({ status: "running", queuePosition: null });
+  });
+
+  it("waypoint-failed 帶截圖網址；cancelled 是一種結束", () => {
+    const v = run([
+      { type: "started", batchId: 1, total: 2 },
+      { type: "waypoint-failed", index: 1, error: "遊戲沒有回應", screenshotUrl: "/api/runs/r/abort.png" },
+      { type: "finished", status: "cancelled" },
+    ]);
+    expect(v.failures).toEqual([{ index: 1, error: "遊戲沒有回應", screenshotUrl: "/api/runs/r/abort.png" }]);
+    expect(v.status).toBe("cancelled");
+  });
 });

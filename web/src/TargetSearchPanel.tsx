@@ -24,6 +24,7 @@ export function TargetSearchPanel({ list, view, onStarted }: Props) {
   }, [view.stderr.length]);
 
   const running = view.status === "running";
+  const queued = view.status === "queued";
   const add = (raw: string) => {
     setTargets((t) => addTarget(t, raw));
     setInput("");
@@ -82,7 +83,7 @@ export function TargetSearchPanel({ list, view, onStarted }: Props) {
           <input type="number" min={0} value={skipCrowded} onChange={(e) => setSkipCrowded(Number(e.target.value))} />
         </label>
       </div>
-      <button disabled={!list || running || (targets.length === 0 && !input.trim())} onClick={start}>
+      <button disabled={!list || (targets.length === 0 && !input.trim())} onClick={start}>
         開始
       </button>
       {startError && <p className="errors">{startError}</p>}
@@ -90,17 +91,29 @@ export function TargetSearchPanel({ list, view, onStarted }: Props) {
       {view.status !== "idle" && (
         <>
           <p>
-            {running
-              ? `進度：第 ${view.index} / ${view.total} 個 Waypoint${view.label ? `（${view.label}）` : ""}`
-              : view.status === "done"
-                ? `完成：共 ${view.total} 個 Waypoint，找到 ${view.sightings.length} 筆`
-                : `失敗：${view.error}`}
+            {queued
+              ? `排隊中：前面還有 ${view.queuePosition ?? 1} 個 Batch，輪到才會開始`
+              : running
+                ? `進度：第 ${view.index} / ${view.total} 個 Waypoint${view.label ? `（${view.label}）` : ""}`
+                : view.status === "done"
+                  ? `完成：共 ${view.total} 個 Waypoint，找到 ${view.sightings.length} 筆`
+                  : view.status === "cancelled"
+                    ? `已取消：跑了 ${view.index} / ${view.total} 個 Waypoint，找到 ${view.sightings.length} 筆${view.error ? `。${view.error}` : ""}`
+                    : `失敗：${view.error}`}
           </p>
           {view.failures.length > 0 && (
             <div className="errors">
               {view.failures.map((f) => (
                 <p key={f.index}>
                   第 {f.index} 個 Waypoint 失敗：{f.error}
+                  {f.screenshotUrl && (
+                    <>
+                      <br />
+                      <a href={f.screenshotUrl} target="_blank" rel="noreferrer">
+                        <img src={f.screenshotUrl} alt="abort.png" style={{ maxWidth: 140, maxHeight: 140 }} />
+                      </a>
+                    </>
+                  )}
                 </p>
               ))}
             </div>

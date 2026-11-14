@@ -3,9 +3,9 @@ import { featureName, type ImportLineError, type ListFeature, type Waypoint, typ
 import { api } from "./api.js";
 
 const IMPORT_HINT: Record<ListFeature, string> = {
-  "postcard-check": "Spot Name 寫在行尾：@Spot Name。Postcard Check 的 GPS 要夠準：check 只看冷啟動後的起點畫面。",
-  "quiet-search": "每行 lat,lng [r=半徑公尺] [標籤]，或 Google Maps 連結。",
-  "target-search": "每行 lat,lng [r=半徑公尺] [標籤]，或 Google Maps 連結。",
+  "postcard-check": "每行都要有 @Spot Name（寫在行尾），不能帶半徑。Postcard Check 的 GPS 要夠準：check 只看冷啟動後的起點畫面。",
+  "quiet-search": "每行 lat,lng [r=半徑公尺] [標籤]，或 Google Maps 連結；不使用 Spot Name。",
+  "target-search": "每行 lat,lng [r=半徑公尺] [標籤]，或 Google Maps 連結；不使用 Spot Name。",
 };
 const IMPORT_PLACEHOLDER: Record<ListFeature, string> = {
   "postcard-check": "每行 lat,lng [標籤] @Spot Name 或 Google Maps 連結\n25.033964,121.564468 台北 101 @生賀神社",

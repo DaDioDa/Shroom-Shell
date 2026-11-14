@@ -66,19 +66,39 @@ export function App() {
   };
   const addAt = async (lat: number, lng: number) => {
     if (selectedId === null) return;
-    await api.addWaypoint(selectedId, lat, lng);
+    let spotName: string | undefined;
+    if (feature === "postcard-check") {
+      const name = window.prompt("Spot Name（必填）", "");
+      if (!name?.trim()) return;
+      spotName = name.trim();
+    }
+    try {
+      await api.addWaypoint(selectedId, lat, lng, spotName);
+    } catch (e) {
+      return void window.alert(e instanceof Error ? e.message : String(e));
+    }
     await reload();
   };
   const edit = async (w: Waypoint) => {
     const label = window.prompt("標籤", w.label);
     if (label === null) return;
-    const radiusText = window.prompt("半徑（公尺，留空＝未設定）", w.radius?.toString() ?? "");
-    if (radiusText === null) return;
-    const spotName = window.prompt("Spot Name（留空＝未設定）", w.spotName ?? "");
-    if (spotName === null) return;
-    const radius = radiusText.trim() === "" ? null : Number(radiusText);
-    if (radius !== null && !(radius > 0)) return void window.alert("半徑要是正數");
-    await api.updateWaypoint(w.id, { label, radius, spotName });
+    const patch: { label: string; radius?: number | null; spotName?: string | null } = { label };
+    if (feature === "postcard-check") {
+      const spotName = window.prompt("Spot Name（必填）", w.spotName ?? "");
+      if (spotName === null) return;
+      patch.spotName = spotName.trim() || null;
+    } else {
+      const radiusText = window.prompt("半徑（公尺，留空＝未設定）", w.radius?.toString() ?? "");
+      if (radiusText === null) return;
+      const radius = radiusText.trim() === "" ? null : Number(radiusText);
+      if (radius !== null && !(radius > 0)) return void window.alert("半徑要是正數");
+      patch.radius = radius;
+    }
+    try {
+      await api.updateWaypoint(w.id, patch);
+    } catch (e) {
+      return void window.alert(e instanceof Error ? e.message : String(e));
+    }
     await reload();
   };
   const removeWaypoint = async (w: Waypoint) => {

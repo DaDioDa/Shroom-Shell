@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseWaypointText } from "./parseWaypoints.js";
+import { checkWaypointFields, parseWaypoints, parseWaypointText } from "./parseWaypoints.js";
+import { FEATURE_NAME } from "./featureNames.js";
 
 describe("parseWaypointText", () => {
   it("解析 lat,lng 與標籤", () => {
@@ -71,5 +72,48 @@ describe("parseWaypointText：Spot Name 欄", () => {
     const r = parseWaypointText("1,2 a@b\n3,4 甲 @");
     expect(r.waypoints).toEqual([{ lat: 1, lng: 2, label: "a@b", radius: null }]);
     expect(r.errors.map((e) => e.line)).toEqual([2]);
+  });
+});
+
+describe("checkWaypointFields：依功能檢查欄位", () => {
+  it("美片菇：必須有 Spot Name，不能有半徑", () => {
+    expect(checkWaypointFields("postcard-check", { radius: null, spotName: "神社" })).toEqual({ ok: true });
+    expect(checkWaypointFields("postcard-check", { radius: null, spotName: null })).toEqual({ ok: false, reason: "美片菇需要 @Spot Name" });
+    expect(checkWaypointFields("postcard-check", { radius: null, spotName: "  " })).toEqual({ ok: false, reason: "美片菇需要 @Spot Name" });
+    expect(checkWaypointFields("postcard-check", { radius: 300, spotName: "神社" })).toEqual({ ok: false, reason: "美片菇不使用半徑" });
+  });
+
+  it("無人巨菇與指定菇菇：不能有 Spot Name，半徑選填", () => {
+    for (const f of ["quiet-search", "target-search"] as const) {
+      expect(checkWaypointFields(f, { radius: null, spotName: null })).toEqual({ ok: true });
+      expect(checkWaypointFields(f, { radius: 300 })).toEqual({ ok: true });
+      const r = checkWaypointFields(f, { radius: null, spotName: "神社" });
+      expect(r.ok).toBe(false);
+      expect(r.ok === false && r.reason).toBe(`${FEATURE_NAME[f]}不使用 Spot Name`);
+    }
+  });
+});
+
+describe("parseWaypoints：依功能匯入", () => {
+  it("美片菇：缺 Spot Name 與帶半徑的行進錯誤清單並附原因", () => {
+    const r = parseWaypoints("postcard-check", "1,2 甲 @神社\n3,4 乙\n5,6 r=300 丙 @店");
+    expect(r.waypoints.map((w) => w.spotName)).toEqual(["神社"]);
+    expect(r.errors.map((e) => [e.line, e.reason])).toEqual([
+      [2, "美片菇需要 @Spot Name"],
+      [3, "美片菇不使用半徑"],
+    ]);
+  });
+
+  it("無人巨菇與指定菇菇：帶 Spot Name 的行被擋，半徑可用", () => {
+    for (const f of ["quiet-search", "target-search"] as const) {
+      const r = parseWaypoints(f, "1,2 r=300 甲\n3,4 乙 @神社\n5,6");
+      expect(r.waypoints.map((w) => w.lat)).toEqual([1, 5]);
+      expect(r.errors).toEqual([{ line: 2, text: "3,4 乙 @神社", reason: `${FEATURE_NAME[f]}不使用 Spot Name` }]);
+    }
+  });
+
+  it("語法錯誤的原因保留", () => {
+    const r = parseWaypoints("quiet-search", "abc");
+    expect(r.errors[0]!.reason).toContain("格式");
   });
 });

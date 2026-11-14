@@ -117,17 +117,17 @@ describe("Waypoint List API", () => {
     await app.close();
   });
 
-  it("編輯標籤、半徑、Spot Name，並可刪除", async () => {
+  it("編輯標籤、半徑，並可刪除（Spot Name 規則見 waypointFields.test.ts）", async () => {
     const app = buildApp({ dataDir: dir });
     const list = await createList(app, "L");
     const wp = (await app.inject({ method: "POST", url: `/api/lists/${list.id}/waypoints`, payload: { lat: 3, lng: 4 } })).json() as Waypoint;
     const res = await app.inject({
       method: "PATCH",
       url: `/api/waypoints/${wp.id}`,
-      payload: { label: "新", radius: 25, spotName: "公園" },
+      payload: { label: "新", radius: 25 },
     });
-    expect(res.json()).toMatchObject({ id: wp.id, label: "新", radius: 25, spotName: "公園", lat: 3 });
-    const cleared = await app.inject({ method: "PATCH", url: `/api/waypoints/${wp.id}`, payload: { radius: null, spotName: null } });
+    expect(res.json()).toMatchObject({ id: wp.id, label: "新", radius: 25, spotName: null, lat: 3 });
+    const cleared = await app.inject({ method: "PATCH", url: `/api/waypoints/${wp.id}`, payload: { radius: null } });
     expect(cleared.json()).toMatchObject({ label: "新", radius: null, spotName: null });
     expect((await app.inject({ method: "PATCH", url: "/api/waypoints/9999", payload: { label: "x" } })).statusCode).toBe(404);
 

@@ -50,10 +50,11 @@ const toStored = (r: SightingRow, runsDir: string): StoredSighting => ({
 
 const SELECT_SIGHTING = "SELECT s.*, b.images_cleared FROM sightings s JOIN batches b ON b.id = s.batch_id";
 
-export function createBatch(db: Db, feature: string, params: { listId: number }, status: BatchStatus = "queued"): number {
+export function createBatch(db: Db, feature: string, params: { listId: number } | object, status: BatchStatus = "queued"): number {
+  const listId = "listId" in params ? params.listId : null; // Discovery 沒有清單
   const r = db
     .prepare("INSERT INTO batches (list_id, list_name, feature, params, status, created_at) VALUES (?, (SELECT name FROM waypoint_lists WHERE id = ?), ?, ?, ?, ?)")
-    .run(params.listId, params.listId, feature, JSON.stringify(params), status, new Date().toISOString());
+    .run(listId, listId, feature, JSON.stringify(params), status, new Date().toISOString());
   return Number(r.lastInsertRowid);
 }
 

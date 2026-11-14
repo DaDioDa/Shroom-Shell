@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { BatchEvent, QuietResult, Region, Waypoint, WaypointList } from "@shell/shared";
+import type { BatchEvent, HistoryDetail, QuietResult, Region, WaypointList } from "@shell/shared";
 import { buildApp } from "../app.js";
 import { FakeBotRunner, FakeDevice, type FakeReply } from "../bot/fakeBot.js";
 
@@ -51,9 +51,6 @@ async function events(app: App, batchId: number) {
 async function lists(app: App) {
   return (await app.inject("/api/lists?feature=quiet-search")).json() as WaypointList[];
 }
-async function waypointsOf(app: App, listId: number) {
-  return (await app.inject(`/api/lists/${listId}/waypoints`)).json() as Waypoint[];
-}
 const body = (over: object = {}) => ({ name: "北區", region: region(3000, 2000), radius: 500, spacing: 1000, ...over });
 
 describe("Discovery Batch", () => {
@@ -73,38 +70,64 @@ describe("Discovery Batch", () => {
     expect(t.device.log.at(-1)).toBe("stop");
   });
 
-  it("true 的點連同半徑進「Discovery：北區」；false 與 null 不加", async () => {
+  it("Discovery 不建立任何清單（包括 true 的點），回應只有 batchId", async () => {
     const t = setup((i) => reply([true, false, null, true, false, false][i]!));
-    const { batchId } = (await start(t.app, body({ radius: 400 }))).json();
-    await events(t.app, batchId);
-    const found = (await lists(t.app)).filter((l) => l.name === "Discovery：北區");
-    expect(found).toHaveLength(1);
-    const wps = await waypointsOf(t.app, found[0]!.id);
-    expect(wps).toHaveLength(2);
-    expect(wps.map((w) => w.radius)).toEqual([400, 400]);
-    // 第 1 點與第 4 點（蛇形）：座標與 Teleport 過的一致
-    const teleported = t.device.log.filter((l) => l.startsWith("teleport")).map((l) => l.slice(9).split(",").map(Number));
-    expect(wps.map((w) => [w.lat, w.lng])).toEqual([teleported[0], teleported[3]]);
+    const before = (await lists(t.app)).length;
+    const res = await start(t.app, body({ radius: 400 }));
+    expect(res.json()).toEqual({ batchId: expect.any(Number) });
+    await events(t.app, res.json().batchId);
+    expect(await lists(t.app)).toHaveLength(before);
+    const all = (await t.app.inject("/api/lists?feature=quiet-search")).json() as WaypointList[];
+    expect(all.some((l) => l.name.startsWith("Discovery"))).toBe(false);
   });
 
-  it("沒有任何 true 時不建立 Discovery 清單", async () => {
-    const t = setup(() => reply(false));
+  it("執行紀錄存每格位置，標籤「格 N」，沒有 waypointId；Batch 沒有清單", async () => {
+    const t = setup(() => reply(true));
     const { batchId } = (await start(t.app, body())).json();
     await events(t.app, batchId);
-    expect((await lists(t.app)).some((l) => l.name === "Discovery：北區")).toBe(false);
+    const d = (await t.app.inject(`/api/history/${batchId}`)).json() as HistoryDetail;
+    const teleported = t.device.log.filter((l) => l.startsWith("teleport")).map((l) => l.slice(9).split(",").map(Number));
+    expect(d.waypoints.map((w) => w.label)).toEqual(["格 1", "格 2", "格 3", "格 4", "格 5", "格 6"]);
+    expect(d.waypoints.map((w) => w.waypointId)).toEqual(Array(6).fill(null));
+    expect(d.waypoints.map((w) => [w.point.lat, w.point.lng])).toEqual(teleported);
+    expect(d.listId).toBeNull();
+    expect(d.listName).toBe("北區"); // 歷史列表顯示 Region 名稱
   });
 
-  it("清單已存在時是附加，不會重複建立", async () => {
-    const t = setup(() => reply(true));
-    const first = (await start(t.app, body({ region: region(1000, 1000) }))).json();
-    await events(t.app, first.batchId);
-    const second = (await start(t.app, body({ region: region(1000, 1000, 25.1, 121.1) }))).json();
-    await events(t.app, second.batchId);
-    const found = (await lists(t.app)).filter((l) => l.name === "Discovery：北區");
-    expect(found).toHaveLength(1);
-    const wps = await waypointsOf(t.app, found[0]!.id);
-    expect(wps).toHaveLength(2);
-    expect(wps.map((w) => w.position)).toEqual([0, 1]);
+  it("歷史詳情附 Region、半徑、間距與名稱", async () => {
+    const t = setup(() => reply(false));
+    const r = region(3000, 2000);
+    const { batchId } = (await start(t.app, body({ name: "北區", region: r, radius: 400, spacing: 1000 }))).json();
+    await events(t.app, batchId);
+    const d = (await t.app.inject(`/api/history/${batchId}`)).json() as HistoryDetail;
+    expect(d.discovery).toEqual({ name: "北區", region: r, radius: 400, spacing: 1000 });
+    const q = (await t.app.inject("/api/lists?feature=quiet-search")).json();
+    expect(q).toEqual([]);
+  });
+
+  it("名稱留空時後端自動命名「探索 YYYY-MM-DD HH:mm」", async () => {
+    const t = setup(() => reply(false));
+    for (const name of [undefined, "", "  "]) {
+      const { batchId } = (await start(t.app, body({ name, region: region(1000, 1000) }))).json();
+      await events(t.app, batchId);
+      const d = (await t.app.inject(`/api/history/${batchId}`)).json() as HistoryDetail;
+      expect(d.discovery!.name).toMatch(/^探索 \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+    }
+  });
+
+  it("佇列項目沒有清單，顯示 Region 名稱", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const t = setup(async () => {
+      await gate;
+      return reply(false);
+    });
+    const { batchId } = (await start(t.app, body({ region: region(1000, 1000) }))).json();
+    await new Promise((r) => setTimeout(r, 30));
+    const q = (await t.app.inject("/api/queue")).json();
+    expect(q.running).toMatchObject({ batchId, feature: "discovery", listId: null, listName: "北區" });
+    release();
+    await events(t.app, batchId);
   });
 
   it("Quiet 結果的 Batch 與 Quiet Giant Search 共用佇列；Batch 的 feature 是 discovery", async () => {
@@ -146,7 +169,7 @@ describe("Discovery Batch", () => {
 
   it("參數不合法回 400", async () => {
     const t = setup(() => reply(false));
-    for (const bad of [{ name: " " }, { radius: 0 }, { spacing: -1 }, { region: { south: 1 } }]) {
+    for (const bad of [{ radius: 0 }, { spacing: -1 }, { region: { south: 1 } }]) {
       expect((await start(t.app, body(bad))).statusCode).toBe(400);
     }
   });

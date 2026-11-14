@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { QueueItem, QueueSnapshot } from "@shell/shared";
 import { api } from "./api.js";
 
-const FEATURE_NAME: Record<string, string> = { "target-search": "Target Search", "quiet-search": "Quiet Giant Search", discovery: "Discovery" };
+const FEATURE_NAME: Record<string, string> = { "target-search": "Target Search", "quiet-search": "Quiet Giant Search", discovery: "Discovery", "postcard-check": "Postcard Check" };
 const label = (i: QueueItem) => `#${i.batchId} ${FEATURE_NAME[i.feature] ?? i.feature}｜${i.listName}`;
 
 /** 底部抽屜：目前在跑的 Batch、排隊中的 Batch，以及取消按鈕。 */

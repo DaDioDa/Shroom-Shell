@@ -2,6 +2,14 @@ import L from "leaflet";
 import { useEffect, useRef } from "react";
 import { isSightingExpired, sweepAreaSquare, type Region, type StoredSighting, type SweepAreaColor, type Waypoint } from "@shell/shared";
 
+/** Postcard Check 的結果標記。 */
+export interface CheckMark {
+  lat: number;
+  lng: number;
+  kind: "found" | "missing" | "unfinished";
+  tooltip: string;
+}
+
 /** 地圖上的 Sweep Area：以 (lat,lng) 為中心、邊長 2R 公尺的正方形。 */
 export interface SweepArea {
   lat: number;
@@ -19,6 +27,7 @@ export function WaypointMap({
   onMarkerClick,
   sightings = [],
   areas = [],
+  checkMarks = [],
   region = null,
   drawing = false,
   onRegionDrawn,
@@ -29,6 +38,7 @@ export function WaypointMap({
   onMarkerClick?: (w: Waypoint) => void;
   sightings?: StoredSighting[];
   areas?: SweepArea[];
+  checkMarks?: CheckMark[];
   /** Discovery 的 Region 外框。 */
   region?: Region | null;
   /** true＝拖曳畫矩形（此時不能拖地圖）。 */
@@ -47,6 +57,7 @@ export function WaypointMap({
   const layer = useRef<L.LayerGroup | null>(null);
   const sightingLayer = useRef<L.LayerGroup | null>(null);
   const areaLayer = useRef<L.LayerGroup | null>(null);
+  const checkLayer = useRef<L.LayerGroup | null>(null);
 
   useEffect(() => {
     const m = L.map(el.current!).setView([25.033964, 121.564468], 13);
@@ -57,6 +68,7 @@ export function WaypointMap({
     m.on("click", (e: L.LeafletMouseEvent) => clickRef.current.onMapClick?.(e.latlng.lat, e.latlng.lng));
     areaLayer.current = L.layerGroup().addTo(m);
     regionLayer.current = L.layerGroup().addTo(m);
+    checkLayer.current = L.layerGroup().addTo(m);
     layer.current = L.layerGroup().addTo(m);
     sightingLayer.current = L.layerGroup().addTo(m);
     map.current = m;
@@ -90,6 +102,20 @@ export function WaypointMap({
         .addTo(g);
     }
   }, [sightings, now]);
+
+  useEffect(() => {
+    const g = checkLayer.current!;
+    g.clearLayers();
+    const colors = { found: "#2f9e44", missing: "#e03131", unfinished: "#868e96" } as const;
+    const shape = { found: "✔", missing: "✖", unfinished: "？" } as const;
+    for (const c of checkMarks) {
+      L.marker([c.lat, c.lng], {
+        icon: L.divIcon({ className: "", html: `<div style="background:${colors[c.kind]};color:#fff;border-radius:50%;width:22px;height:22px;line-height:22px;text-align:center;font-weight:bold">${shape[c.kind]}</div>`, iconSize: [22, 22] }),
+      })
+        .bindTooltip(c.tooltip)
+        .addTo(g);
+    }
+  }, [checkMarks]);
 
   useEffect(() => {
     const g = areaLayer.current!;

@@ -2,13 +2,14 @@ import { createReadStream, existsSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import type { FastifyInstance } from "fastify";
-import { planDiscovery, type CancelMode, type QuietSearchParams, type Region, TargetSearchParams, Waypoint } from "@shell/shared";
+import { missingSpotNames, planDiscovery, type CancelMode, type QuietSearchParams, type Region, TargetSearchParams, Waypoint } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { BatchHub } from "./hub.js";
 import { BatchQueue } from "./queue.js";
 import { runBatch, type BatchDeps, type BatchFeature } from "./runBatch.js";
 import { createBatch, finishBatch, getBatch, listSightings, listTargets, quietAverageMs, rememberTargets } from "./store.js";
 import { discoveryFeature } from "./discovery.js";
+import { postcardCheckFeature } from "./postcardCheck.js";
 import { quietSearchFeature } from "./quietSearch.js";
 import { targetSearchFeature } from "./targetSearch.js";
 import { deleteBatch, getHistory, listHistory } from "./history.js";
@@ -88,6 +89,23 @@ export function registerBatchRoutes(app: FastifyInstance, db: Db, deps: Omit<Bat
       .all(params.listId) as unknown as Waypoint[];
     const batchId = createBatch(db, "quiet-search", params);
     start(batchId, "quiet-search", params.listId, quietSearchFeature(params), waypoints);
+    return reply.code(201).send({ batchId });
+  });
+
+  app.post("/api/batches/postcard-check", async (req, reply) => {
+    const listId = ((req.body ?? {}) as { listId?: unknown }).listId;
+    if (typeof listId !== "number") return reply.code(400).send({ error: "需要 listId" });
+    if (db.prepare("SELECT 1 FROM waypoint_lists WHERE id = ?").get(listId) === undefined) return reply.code(404).send({ error: "找不到清單" });
+    const waypoints = db
+      .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius, spot_name AS spotName FROM waypoints WHERE list_id = ? ORDER BY position, id")
+      .all(listId) as unknown as Waypoint[];
+    const missing = missingSpotNames(waypoints);
+    if (missing.length > 0) {
+      const names = missing.map((w) => w.label || `${w.lat}, ${w.lng}`).join("、");
+      return reply.code(400).send({ error: `這些 Waypoint 沒有 Spot Name，不能開始 Postcard Check：${names}`, missing: missing.map((w) => w.id) });
+    }
+    const batchId = createBatch(db, "postcard-check", { listId });
+    start(batchId, "postcard-check", listId, postcardCheckFeature(), waypoints);
     return reply.code(201).send({ batchId });
   });
 

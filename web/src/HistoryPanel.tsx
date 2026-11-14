@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import type { HistoryDetail, HistoryRow } from "@shell/shared";
 import { api } from "./api.js";
+import { CheckResultCard } from "./CheckResultCard.js";
 import { QuietResultCard } from "./QuietResultCard.js";
 import { SightingCard } from "./SightingCard.js";
 
-const FEATURE: Record<string, string> = { "target-search": "Target Search", "quiet-search": "Quiet Giant Search", discovery: "Discovery" };
+const FEATURE: Record<string, string> = { "target-search": "Target Search", "quiet-search": "Quiet Giant Search", discovery: "Discovery", "postcard-check": "Postcard Check" };
 const STATUS: Record<string, string> = { running: "執行中", queued: "排隊中", done: "完成", failed: "失敗", cancelled: "已取消" };
 const busy = (r: { status: string }) => r.status === "running" || r.status === "queued";
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");
@@ -44,7 +45,9 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
         <p>{detail.summary}</p>
         {detail.error && <p className="errors">{detail.error}</p>}
         {detail.waypoints.map((w) =>
-          w.quiet ? (
+          w.check ? (
+            <CheckResultCard key={w.index} outcome={w.check} name={w.label} />
+          ) : w.quiet ? (
             <QuietResultCard
               key={w.index}
               outcome={{ index: w.index, waypointId: w.waypointId, radius: w.quiet.radius, result: w.quiet.result }}

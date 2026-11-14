@@ -4,6 +4,8 @@ export interface ParsedWaypoint {
   label: string;
   /** 公尺；null = 沒指定（用 Batch 的預設半徑）。 */
   radius: number | null;
+  /** 遊戲內 Spot 的名稱（Postcard Check 用）；沒寫就不帶這個欄位。 */
+  spotName?: string;
 }
 
 export interface ParseError {
@@ -14,9 +16,12 @@ export interface ParseError {
 
 const LINE = /^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)(?:\s+(.*))?$/;
 
+/** 行尾的 ` @Spot Name`（或整段標籤就是 `@Spot Name`）。 */
+const SPOT = /(?:^|\s)@(.*)$/;
+
 const RADIUS = /^r=(-?[0-9]+(?:[.][0-9]+)?)(?:\s+(.*))?$/i;
 
-/** 解析多行 `lat,lng [r=公尺] [標籤]`。空行略過；壞掉的行（行號從 1 起算）列在 errors。 */
+/** 解析多行 `lat,lng [r=公尺] [標籤] [@Spot Name]`。空行略過；壞掉的行（行號從 1 起算）列在 errors。 */
 export function parseWaypointText(text: string): { waypoints: ParsedWaypoint[]; errors: ParseError[] } {
   const waypoints: ParsedWaypoint[] = [];
   const errors: ParseError[] = [];
@@ -25,7 +30,7 @@ export function parseWaypointText(text: string): { waypoints: ParsedWaypoint[]; 
     if (!line) return;
     const m = LINE.exec(line);
     if (!m) {
-      errors.push({ line: i + 1, text: raw, reason: "格式應為 lat,lng [r=公尺] [標籤]" });
+      errors.push({ line: i + 1, text: raw, reason: "格式應為 lat,lng [r=公尺] [標籤] [@Spot Name]" });
       return;
     }
     const lat = Number(m[1]);
@@ -49,7 +54,17 @@ export function parseWaypointText(text: string): { waypoints: ParsedWaypoint[]; 
       }
       label = (rm[2] ?? "").trim();
     }
-    waypoints.push({ lat, lng, label, radius });
+    let spotName: string | undefined;
+    const sm = SPOT.exec(label);
+    if (sm) {
+      spotName = sm[1]!.trim();
+      if (!spotName) {
+        errors.push({ line: i + 1, text: raw, reason: "@ 後面要接 Spot Name" });
+        return;
+      }
+      label = label.slice(0, sm.index).trim();
+    }
+    waypoints.push({ lat, lng, label, radius, ...(spotName ? { spotName } : {}) });
   });
   return { waypoints, errors };
 }

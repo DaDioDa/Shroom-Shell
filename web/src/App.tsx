@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { sweepAreaColor, visibleSightings, type ImportLineError, type Region, type Waypoint, type WaypointList } from "@shell/shared";
+import { describePostcardCheck, sweepAreaColor, visibleSightings, type ImportLineError, type Region, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
-import { WaypointMap, type SweepArea } from "./Map.js";
+import { WaypointMap, type CheckMark, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
 import { DiscoveryPanel } from "./DiscoveryPanel.js";
 import { HistoryPanel } from "./HistoryPanel.js";
+import { PostcardCheckPanel } from "./PostcardCheckPanel.js";
 import { QuietSearchPanel } from "./QuietSearchPanel.js";
 import { TargetSearchPanel } from "./TargetSearchPanel.js";
 import { useNow } from "./useNow.js";
@@ -17,7 +18,7 @@ export function App() {
   const [newName, setNewName] = useState("");
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<ImportLineError[]>([]);
-  const [tab, setTab] = useState<"lists" | "quiet" | "discovery" | "target" | "history">("lists");
+  const [tab, setTab] = useState<"lists" | "quiet" | "discovery" | "postcard" | "target" | "history">("lists");
   const [region, setRegion] = useState<Region | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [showAllSightings, setShowAllSightings] = useState(false);
@@ -106,6 +107,14 @@ export function App() {
     return [{ lat: w.lat, lng: w.lng, radius: o.radius, color: sweepAreaColor(o.result.verdict), tooltip: o.result.reason }];
   });
 
+  const checkMarks: CheckMark[] = view.checkResults.flatMap((o) => {
+    const w = waypoints.find((x) => x.id === o.waypointId);
+    if (!w) return [];
+    const d = describePostcardCheck(o.result, Date.now());
+    const kind = o.result.found === true ? "found" : o.result.found === false ? "missing" : "unfinished";
+    return [{ lat: w.lat, lng: w.lng, kind, tooltip: `${d.title}｜${d.message}` } as CheckMark];
+  });
+
   return (
     <div className="layout">
       <WaypointMap
@@ -113,6 +122,7 @@ export function App() {
         sightings={visibleSightings(view.sightings, now, showAllSightings)}
         now={now}
         areas={areas}
+        checkMarks={checkMarks}
         region={tab === "discovery" ? region : null}
         drawing={tab === "discovery" && drawing}
         onRegionDrawn={(r) => (setRegion(r), setDrawing(false))}
@@ -129,6 +139,9 @@ export function App() {
           </button>
           <button className={tab === "discovery" ? "active" : ""} onClick={() => setTab("discovery")}>
             Discovery
+          </button>
+          <button className={tab === "postcard" ? "active" : ""} onClick={() => setTab("postcard")}>
+            Postcard Check
           </button>
           <button className={tab === "target" ? "active" : ""} onClick={() => setTab("target")}>
             Target Search
@@ -155,6 +168,7 @@ export function App() {
             }}
           />
         )}
+        {tab === "postcard" && <PostcardCheckPanel list={selected} waypoints={waypoints} view={view} onStarted={follow} />}
         {tab === "history" && <HistoryPanel refreshKey={view.status} />}
         {tab === "target" && <TargetSearchPanel list={selected} view={view} onStarted={follow} />}
         {tab === "lists" && <>
@@ -187,9 +201,12 @@ export function App() {
               ))}
             </ol>
             <h4>匯入到「{selected.name}」</h4>
+            <p className="muted">
+              Spot Name 寫在行尾：<code>@Spot Name</code>。Postcard Check 的 GPS 要夠準：<code>check</code> 只看冷啟動後的起點畫面。
+            </p>
             <textarea
               value={text}
-              placeholder={"每行 lat,lng [r=半徑公尺] [標籤] 或 Google Maps 連結\n25.033964,121.564468 r=300 台北 101"}
+              placeholder={"每行 lat,lng [r=半徑公尺] [標籤] [@Spot Name] 或 Google Maps 連結\n25.033964,121.564468 r=300 台北 101 @生賀神社"}
               onChange={(e) => setText(e.target.value)}
             />
             <button onClick={doImport}>匯入</button>

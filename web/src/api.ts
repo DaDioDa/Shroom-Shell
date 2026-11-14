@@ -24,6 +24,7 @@ export const api = {
   targets: () => call<string[]>("GET", "/api/targets"),
   startTargetSearch: (p: TargetSearchParams) => call<{ batchId: number }>("POST", "/api/batches/target-search", p),
   startQuietSearch: (p: QuietSearchParams) => call<{ batchId: number }>("POST", "/api/batches/quiet-search", p),
+  startPostcardCheck: (p: { listId: number }) => call<{ batchId: number }>("POST", "/api/batches/postcard-check", p),
   quietStats: () => call<{ avgMsPerPoint: number | null }>("GET", "/api/quiet-stats"),
   startDiscovery: (p: { name: string; region: Region; radius: number; spacing: number; confirmed?: boolean }) =>
     call<{ batchId: number; listId: number }>("POST", "/api/batches/discovery", p),

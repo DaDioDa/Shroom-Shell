@@ -54,3 +54,22 @@ describe("parseWaypointText", () => {
     expect(r.errors).toHaveLength(3);
   });
 });
+
+describe("parseWaypointText：Spot Name 欄", () => {
+  it("標籤後面接 ` @Spot Name`；可單獨寫、可搭配 r=", () => {
+    const r = parseWaypointText("1,2 r=300 甲 @生賀神社\n3,4 @Blue Cafe\n5,6 乙 @ 有空白的名稱 \n7,8 丙");
+    expect(r.errors).toEqual([]);
+    expect(r.waypoints).toEqual([
+      { lat: 1, lng: 2, label: "甲", radius: 300, spotName: "生賀神社" },
+      { lat: 3, lng: 4, label: "", radius: null, spotName: "Blue Cafe" },
+      { lat: 5, lng: 6, label: "乙", radius: null, spotName: "有空白的名稱" },
+      { lat: 7, lng: 8, label: "丙", radius: null },
+    ]);
+  });
+
+  it("標籤中間的 @（沒有前置空白）不算 Spot Name；`@` 後沒字是錯誤", () => {
+    const r = parseWaypointText("1,2 a@b\n3,4 甲 @");
+    expect(r.waypoints).toEqual([{ lat: 1, lng: 2, label: "a@b", radius: null }]);
+    expect(r.errors.map((e) => e.line)).toEqual([2]);
+  });
+});

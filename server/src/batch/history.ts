@@ -1,8 +1,9 @@
 import { rmSync } from "node:fs";
 import { basename, join, resolve, sep } from "node:path";
-import { sweepRadius, type HistoryDetail, type HistoryRow, type HistoryWaypoint, type QuietResult } from "@shell/shared";
+import { sweepRadius, type HistoryDetail, type HistoryRow, type HistoryWaypoint, type CheckResult, type QuietResult } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { listSightings } from "./store.js";
+import { toOutcome } from "./postcardCheck.js";
 
 /** 這些狀態的 Batch 還在動（或馬上要動），不能刪。 */
 const isQuiet = (feature: string) => feature === "quiet-search" || feature === "discovery";
@@ -58,6 +59,14 @@ function loadRuns(db: Db, batchId: number): RunRow[] {
 function summarize(db: Db, b: BatchRow): string {
   const runs = loadRuns(db, b.id);
   const total = (db.prepare("SELECT COUNT(*) AS n FROM waypoint_runs WHERE batch_id = ?").get(b.id) as { n: number }).n;
+  if (b.feature === "postcard-check") {
+    const c = { found: 0, missing: 0, unfinished: 0 };
+    for (const r of runs) {
+      const f = parseJson<CheckResult>(r.result_json)?.found;
+      c[f === true ? "found" : f === false ? "missing" : "unfinished"]++;
+    }
+    return `${total} 個 Waypoint：找到 ${c.found}、沒找到 ${c.missing}、沒讀完 ${c.unfinished}`;
+  }
   if (isQuiet(b.feature)) {
     const counts = { yes: 0, no: 0, unknown: 0 };
     for (const r of runs) {
@@ -98,6 +107,7 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
     const stored = isQuiet(b.feature) ? parseJson<QuietResult & { radius?: number }>(r.result_json) : null;
     const { radius: storedRadius, ...result } = stored ?? ({} as QuietResult & { radius?: number });
     const radius = storedRadius ?? sweepRadius({ radius: r.wp_radius }, params?.radius ?? 0);
+    const checkResult = b.feature === "postcard-check" ? parseJson<CheckResult>(r.result_json) : null;
     return {
       index: r.idx,
       waypointId: r.waypoint_id,
@@ -106,6 +116,7 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
       error: r.error,
       runDir: r.run_dir,
       sightings: sightings.filter((s) => s.waypointId === r.waypoint_id),
+      check: b.feature === "postcard-check" && checkResult ? toOutcome(runsDir, r.run_dir, r.idx, r.waypoint_id, checkResult) : null,
       quiet: stored ? { radius, result: result as QuietResult } : null,
     };
   });

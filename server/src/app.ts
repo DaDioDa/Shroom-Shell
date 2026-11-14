@@ -140,10 +140,10 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     const start = (db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM waypoints WHERE list_id = ?").get(id) as {
       n: number;
     }).n;
-    const insert = db.prepare("INSERT INTO waypoints (list_id, position, lat, lng, label, radius) VALUES (?, ?, ?, ?, ?, ?)");
+    const insert = db.prepare("INSERT INTO waypoints (list_id, position, lat, lng, label, radius, spot_name) VALUES (?, ?, ?, ?, ?, ?, ?)");
     const imported: Waypoint[] = waypoints.map((w, i) => {
-      const r = insert.run(id, start + i, w.lat, w.lng, w.label, w.radius);
-      return { id: Number(r.lastInsertRowid), listId: id, position: start + i, lat: w.lat, lng: w.lng, label: w.label, radius: w.radius, spotName: null };
+      const r = insert.run(id, start + i, w.lat, w.lng, w.label, w.radius, w.spotName ?? null);
+      return { id: Number(r.lastInsertRowid), listId: id, position: start + i, lat: w.lat, lng: w.lng, label: w.label, radius: w.radius, spotName: w.spotName ?? null };
     });
     const result: ImportResult = { imported, errors };
     return result;

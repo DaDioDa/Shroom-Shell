@@ -7,3 +7,4 @@ export * from "./parseMapsLink.js";
 export * from "./sweepArea.js";
 export * from "./discovery.js";
 export * from "./sightingExpiry.js";
+export * from "./postcardCheck.js";

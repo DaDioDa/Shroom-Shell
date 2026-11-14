@@ -1,3 +1,5 @@
+import type { CheckOutcome } from "./postcardCheck.js";
+
 export interface WaypointList {
   id: number;
   name: string;
@@ -92,6 +94,8 @@ export type BatchEvent =
   | { type: "waypoint-failed"; index: number; error: string; screenshotUrl?: string }
   /** Quiet Giant Search：一個 Waypoint 的答案。radius 是這點實際用的半徑（公尺）。 */
   | { type: "quiet-result"; index: number; waypointId: number; radius: number; result: QuietResult }
+  /** Postcard Check：一個 Waypoint 的答案。 */
+  | { type: "check-result"; outcome: CheckOutcome }
   | { type: "finished"; status: BatchStatus; error?: string };
 
 /** bot `quiet` stdout 最後一行的答案（格式見 pikmin_bloom_bot 的 cli.md）。 */
@@ -137,6 +141,8 @@ export interface HistoryWaypoint {
   runDir: string | null;
   sightings: StoredSighting[];
   quiet: { radius: number; result: QuietResult } | null;
+  /** 只有 Postcard Check 的 Batch 才有。 */
+  check: CheckOutcome | null;
 }
 
 export interface HistoryDetail extends HistoryRow {

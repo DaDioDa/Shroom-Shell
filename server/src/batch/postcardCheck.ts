@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import type { CheckOutcome, CheckResult } from "@shell/shared";
+import type { BatchPoint, CheckOutcome, CheckResult } from "@shell/shared";
 import { parseCheckStdout } from "../bot/parseCheck.js";
 import { failureReason, type BatchFeature } from "./runBatch.js";
 
@@ -14,11 +14,12 @@ export function checkImageUrl(runsDir: string, runName: string | null, absPath: 
   return `/api/runs/${runName}/${basename(full)}`;
 }
 
-export function toOutcome(runsDir: string, runName: string | null, index: number, waypointId: number, result: CheckResult, abortUrl: string | null = null, imagesCleared = false): CheckOutcome {
+export function toOutcome(runsDir: string, runName: string | null, index: number, point: BatchPoint, result: CheckResult, abortUrl: string | null = null, imagesCleared = false): CheckOutcome {
   const found = result.found === true ? result : null;
   return {
     index,
-    waypointId,
+    waypointId: point.waypointId ?? null,
+    point,
     result,
     frameUrl: checkImageUrl(runsDir, runName, found?.frame ?? null),
     postcardUrl: checkImageUrl(runsDir, runName, found?.postcard ?? null),
@@ -48,9 +49,9 @@ export function postcardCheckFeature(): BatchFeature {
   return {
     plan: (w) => ({ command: "check", args: ["--spot-name", w.spotName ?? ""] }),
     okExitCodes: [0, 1, 2],
-    interpret({ deps, batchId, waypoint, index, result: run, stderr, runName, abortShotUrl }) {
-      const result = interpretCheckRun({ exitCode: run.exitCode, stdout: run.stdout, stderr, runDir: run.runDir }, waypoint.spotName ?? "");
-      deps.hub.emit(batchId, { type: "check-result", outcome: toOutcome(deps.runsDir, runName, index, waypoint.id, result, abortShotUrl) });
+    interpret({ deps, batchId, point, index, result: run, stderr, runName, abortShotUrl }) {
+      const result = interpretCheckRun({ exitCode: run.exitCode, stdout: run.stdout, stderr, runDir: run.runDir }, point.spotName ?? "");
+      deps.hub.emit(batchId, { type: "check-result", outcome: toOutcome(deps.runsDir, runName, index, point, result, abortShotUrl) });
       return { result, error: result.found === null ? result.reason : null, report: false };
     },
   };

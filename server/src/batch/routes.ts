@@ -2,7 +2,7 @@ import { createReadStream, existsSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import type { FastifyInstance } from "fastify";
-import { missingSpotNames, planDiscovery, type CancelMode, type QuietSearchParams, type Region, type Settings, type TargetSearchParams, type Waypoint } from "@shell/shared";
+import { missingSpotNames, planDiscovery, waypointToPoint, type BatchPoint, type CancelMode, type QuietSearchParams, type Region, type Settings, type TargetSearchParams, type Waypoint } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { BatchHub } from "./hub.js";
 import { BatchQueue } from "./queue.js";
@@ -64,17 +64,17 @@ export function registerBatchRoutes(
       .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius FROM waypoints WHERE list_id = ? ORDER BY position, id")
       .all(body.listId) as unknown as Waypoint[];
     const batchId = createBatch(db, "target-search", body);
-    start(batchId, "target-search", body.listId, targetSearchFeature(body), waypoints);
+    start(batchId, "target-search", body.listId, targetSearchFeature(body), waypoints.map(waypointToPoint));
     return reply.code(201).send({ batchId });
   });
 
   /** 所有功能共用：排進同一個佇列，輪到時交給 runBatch。 */
-  function start(batchId: number, name: string, listId: number, feature: BatchFeature, waypoints: Waypoint[]) {
+  function start(batchId: number, name: string, listId: number, feature: BatchFeature, points: BatchPoint[]) {
     const listName = (db.prepare("SELECT name FROM waypoint_lists WHERE id = ?").get(listId) as { name: string }).name;
     hub.open(batchId);
     const position = queue.enqueue({
       item: { batchId, feature: name, listId, listName },
-      run: (control) => runBatch(full, batchId, feature, waypoints, control),
+      run: (control) => runBatch(full, batchId, feature, points, control),
       onRemoved: () => cancelQueued(batchId),
     });
     if (position > 0) hub.emit(batchId, { type: "queued", batchId, position });
@@ -109,7 +109,7 @@ export function registerBatchRoutes(
       .prepare("SELECT id, list_id AS listId, position, lat, lng, label, radius, spot_name AS spotName FROM waypoints WHERE list_id = ? ORDER BY position, id")
       .all(params.listId) as unknown as Waypoint[];
     const batchId = createBatch(db, "quiet-search", params);
-    start(batchId, "quiet-search", params.listId, quietSearchFeature(params), waypoints);
+    start(batchId, "quiet-search", params.listId, quietSearchFeature(params), waypoints.map(waypointToPoint));
     return reply.code(201).send({ batchId });
   });
 
@@ -126,7 +126,7 @@ export function registerBatchRoutes(
       return reply.code(400).send({ error: `這些 Waypoint 沒有 Spot Name，不能開始 Postcard Check：${names}`, missing: missing.map((w) => w.id) });
     }
     const batchId = createBatch(db, "postcard-check", { listId });
-    start(batchId, "postcard-check", listId, postcardCheckFeature(), waypoints);
+    start(batchId, "postcard-check", listId, postcardCheckFeature(), waypoints.map(waypointToPoint));
     return reply.code(201).send({ batchId });
   });
 
@@ -156,7 +156,7 @@ export function registerBatchRoutes(
       .all(gridId) as unknown as Waypoint[];
     const params = { listId: gridId, radius: b.radius, regionName: name, region: r, spacing: b.spacing };
     const batchId = createBatch(db, "discovery", params);
-    start(batchId, "discovery", gridId, discoveryFeature(params), waypoints);
+    start(batchId, "discovery", gridId, discoveryFeature(params), waypoints.map(waypointToPoint));
     return reply.code(201).send({ batchId, listId: gridId });
   });
 

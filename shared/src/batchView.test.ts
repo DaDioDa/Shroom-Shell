@@ -31,9 +31,9 @@ describe("reduceBatchView", () => {
     const result = { quiet_area: false, verdict: false, reason: "有人在打", giants: [], claimed: { cell: 3, participant_count: null }, unread: 1 };
     const events: BatchEvent[] = [
       { type: "started", batchId: 1, total: 1 },
-      { type: "quiet-result", index: 1, waypointId: 9, radius: 250, result },
+      { type: "quiet-result", index: 1, waypointId: 9, point: { lat: 1, lng: 2, label: "甲", radius: 250, waypointId: 9 }, radius: 250, result },
     ];
-    expect(run(events).quietResults).toEqual([{ index: 1, waypointId: 9, radius: 250, result }]);
+    expect(run(events).quietResults).toEqual([{ index: 1, waypointId: 9, point: { lat: 1, lng: 2, label: "甲", radius: 250, waypointId: 9 }, radius: 250, result }]);
     expect(run([...events, { type: "started", batchId: 2, total: 1 }]).quietResults).toEqual([]);
   });
 

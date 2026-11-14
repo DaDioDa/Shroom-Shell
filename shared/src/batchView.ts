@@ -1,10 +1,12 @@
 import type { CheckOutcome } from "./postcardCheck.js";
-import type { BatchEvent, BatchStatus, QuietResult, StoredSighting } from "./types.js";
+import type { BatchEvent, BatchPoint, BatchStatus, QuietResult, StoredSighting } from "./types.js";
 
 /** Quiet Giant Search 一個 Waypoint 的結果（供地圖畫正方形與結果卡片）。 */
 export interface QuietOutcome {
   index: number;
-  waypointId: number;
+  waypointId: number | null;
+  /** 執行當時的點（畫 Sweep 方格用，不回查目前清單）。 */
+  point: BatchPoint;
   radius: number;
   result: QuietResult;
   /** 這點中止時的 abort.png 網址。 */
@@ -61,7 +63,7 @@ export function reduceBatchView(v: BatchView, e: BatchEvent): BatchView {
         failures: [...v.failures, { index: e.index, error: e.error, ...(e.screenshotUrl ? { screenshotUrl: e.screenshotUrl } : {}) }],
       };
     case "quiet-result":
-      return { ...v, quietResults: [...v.quietResults, { index: e.index, waypointId: e.waypointId, radius: e.radius, result: e.result, ...(e.screenshotUrl ? { screenshotUrl: e.screenshotUrl } : {}) }] };
+      return { ...v, quietResults: [...v.quietResults, { index: e.index, waypointId: e.waypointId, point: e.point, radius: e.radius, result: e.result, ...(e.screenshotUrl ? { screenshotUrl: e.screenshotUrl } : {}) }] };
     case "check-result":
       return { ...v, checkResults: [...v.checkResults, e.outcome] };
     case "finished":

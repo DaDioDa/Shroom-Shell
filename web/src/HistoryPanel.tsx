@@ -63,7 +63,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey: unknown }) {
           ) : w.quiet ? (
             <QuietResultCard
               key={w.index}
-              outcome={{ index: w.index, waypointId: w.waypointId, radius: w.quiet.radius, result: w.quiet.result, ...(w.abortUrl ? { screenshotUrl: w.abortUrl } : {}) }}
+              outcome={{ index: w.index, waypointId: w.waypointId, point: w.point, radius: w.quiet.radius, result: w.quiet.result, ...(w.abortUrl ? { screenshotUrl: w.abortUrl } : {}) }}
               name={w.label}
               giants={w.sightings}
             />

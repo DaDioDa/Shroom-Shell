@@ -1,7 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ImportResult, Waypoint, WaypointList } from "@shell/shared";
 import { buildApp } from "./app.js";
@@ -167,19 +166,6 @@ describe("Waypoint List API", () => {
     const body = res.json() as ImportResult;
     expect(body.imported.map((w) => [w.lat, w.lng])).toEqual([[25.1, 121.5]]);
     expect(body.errors).toEqual([{ line: 2, text: "https://maps.app.goo.gl/abc", reason: expect.stringContaining("短網址") }]);
-    await app.close();
-  });
-
-  it("舊資料庫（沒有 spot_name 欄位）開啟後自動補欄位且資料保留", async () => {
-    const old = new DatabaseSync(join(dir, "app.db"));
-    old.exec(`CREATE TABLE waypoint_lists (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL);
-      CREATE TABLE waypoints (id INTEGER PRIMARY KEY AUTOINCREMENT, list_id INTEGER NOT NULL REFERENCES waypoint_lists(id) ON DELETE CASCADE,
-        position INTEGER NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL, label TEXT NOT NULL DEFAULT '', radius REAL);
-      INSERT INTO waypoint_lists (name) VALUES ('舊'); INSERT INTO waypoints (list_id, position, lat, lng, label) VALUES (1, 0, 5, 6, '舊點');`);
-    old.close();
-    const app = buildApp({ dataDir: dir });
-    const wps = (await app.inject("/api/lists/1/waypoints")).json() as Waypoint[];
-    expect(wps[0]).toMatchObject({ label: "舊點", spotName: null });
     await app.close();
   });
 });

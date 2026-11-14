@@ -1,3 +1,5 @@
+import type { BatchPoint } from "./types.js";
+
 /** bot `check` stdout 的單行 JSON（格式見 pikmin_bloom_bot 的 cli.md）。frame／postcard 是絕對路徑。 */
 export type CheckResult =
   | {
@@ -29,7 +31,9 @@ export type CheckResult =
 /** 一個 Waypoint 的 Postcard Check 結果；圖片網址由後端依 run 資料夾補上（檔案不在就是 null）。 */
 export interface CheckOutcome {
   index: number;
-  waypointId: number;
+  waypointId: number | null;
+  /** 執行當時的點（畫檢查標記用，不回查目前清單）。 */
+  point: BatchPoint;
   result: CheckResult;
   frameUrl: string | null;
   postcardUrl: string | null;

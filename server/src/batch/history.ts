@@ -1,5 +1,5 @@
 import { rmSync } from "node:fs";
-import { sweepRadius, type HistoryDetail, type HistoryRow, type HistoryWaypoint, type CheckResult, type QuietResult } from "@shell/shared";
+import { sweepRadius, type HistoryDetail, type HistoryRow, type BatchPoint, type HistoryWaypoint, type CheckResult, type QuietResult } from "@shell/shared";
 import type { Db } from "../db/database.js";
 import { safeRunPath } from "./runPath.js";
 import { listSightings } from "./store.js";
@@ -27,15 +27,15 @@ interface BatchRow {
 }
 interface RunRow {
   idx: number;
-  waypoint_id: number;
+  waypoint_id: number | null;
+  lat: number;
+  lng: number;
+  label: string;
+  radius: number | null;
   exit_code: number | null;
   result_json: string | null;
   run_dir: string | null;
   error: string | null;
-  wp_label: string | null;
-  wp_lat: number | null;
-  wp_lng: number | null;
-  wp_radius: number | null;
 }
 
 const SELECT_BATCH = `SELECT b.*, COALESCE(l.name, b.list_name) AS list_name FROM batches b LEFT JOIN waypoint_lists l ON l.id = b.list_id`;
@@ -52,10 +52,8 @@ function parseJson<T>(text: string | null): T | null {
 function loadRuns(db: Db, batchId: number): RunRow[] {
   return db
     .prepare(
-      `SELECT r.idx, r.waypoint_id, r.exit_code, r.result_json, r.run_dir, r.error,
-              w.label AS wp_label, w.lat AS wp_lat, w.lng AS wp_lng, w.radius AS wp_radius
-       FROM waypoint_runs r LEFT JOIN waypoints w ON w.id = r.waypoint_id
-       WHERE r.batch_id = ? ORDER BY r.idx`,
+      `SELECT idx, waypoint_id, lat, lng, label, radius, exit_code, result_json, run_dir, error
+       FROM waypoint_runs WHERE batch_id = ? ORDER BY idx`,
     )
     .all(batchId) as unknown as RunRow[];
 }
@@ -108,22 +106,25 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
   const params = parseJson<{ radius?: number }>(b.params);
   const sightings = listSightings(db, id, runsDir);
   const waypoints = loadRuns(db, id).map((r): HistoryWaypoint => {
-    // result_json 是 QuietResult 加上這點用的半徑；舊資料沒有半徑就退回 Waypoint 目前的半徑或 Batch 預設。
+    // 位置、標籤、半徑都是執行當時記下的（waypoint_runs），不回查 waypoints 表。
+    const point: BatchPoint = { lat: r.lat, lng: r.lng, label: r.label, radius: r.radius, waypointId: r.waypoint_id };
+    // result_json 是 QuietResult 加上這點實際用的半徑（點沒有半徑時用 Batch 預設）。
     const stored = isQuiet(b.feature) ? parseJson<QuietResult & { radius?: number }>(r.result_json) : null;
     const { radius: storedRadius, ...result } = stored ?? ({} as QuietResult & { radius?: number });
-    const radius = storedRadius ?? sweepRadius({ radius: r.wp_radius }, params?.radius ?? 0);
+    const radius = storedRadius ?? sweepRadius({ radius: r.radius }, params?.radius ?? 0);
     const checkResult = b.feature === "postcard-check" ? parseJson<CheckResult>(r.result_json) : null;
     const abortUrl = abortShotUrl(runsDir, r.run_dir);
     return {
       index: r.idx,
       waypointId: r.waypoint_id,
-      label: r.wp_label || (r.wp_lat === null ? "（已刪除的 Waypoint）" : `${r.wp_lat}, ${r.wp_lng}`),
+      point,
+      label: r.label || `${r.lat}, ${r.lng}`,
       exitCode: r.exit_code,
       error: r.error,
       runDir: r.run_dir,
       abortUrl,
       sightings: sightings.filter((s) => s.waypointId === r.waypoint_id),
-      check: b.feature === "postcard-check" && checkResult ? toOutcome(runsDir, r.run_dir, r.idx, r.waypoint_id, checkResult, abortUrl, b.images_cleared === 1) : null,
+      check: b.feature === "postcard-check" && checkResult ? toOutcome(runsDir, r.run_dir, r.idx, point, checkResult, abortUrl, b.images_cleared === 1) : null,
       quiet: stored ? { radius, result: result as QuietResult } : null,
     };
   });

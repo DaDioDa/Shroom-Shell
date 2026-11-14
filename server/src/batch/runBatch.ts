@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { Waypoint } from "@shell/shared";
+import type { BatchPoint } from "@shell/shared";
 import type { BotRunResult, BotRunner } from "../bot/runner.js";
 import type { Device } from "../device/device.js";
 import type { Db } from "../db/database.js";
@@ -26,14 +26,14 @@ export interface BatchDeps {
  * 佇列、取消、單點失敗、恢復 GPS 這些控制流程都在 runBatch。
  */
 export interface BatchFeature {
-  plan(waypoint: Waypoint): { command: string; args: string[] };
+  plan(point: BatchPoint): { command: string; args: string[] };
   /** 這些 exit code 是 feature 自己看得懂的正常答案（預設只有 0）。其他 exit code 算這個 Waypoint 失敗。 */
   okExitCodes?: number[];
   /** 解析並存下結果（也可以 emit 事件）。回傳要存的 result 與這個 Waypoint 的錯誤（沒有就 null）。 */
   interpret(ctx: {
     deps: BatchDeps;
     batchId: number;
-    waypoint: Waypoint;
+    point: BatchPoint;
     index: number;
     result: BotRunResult;
     /** bot 這次印的 stderr 每一行。 */
@@ -89,15 +89,15 @@ export function failureReason(stderr: string[], runDir: string | null): string {
 
 const FORCE_NOTE = "強制停止：遊戲可能還開著、手機螢幕可能沒鎖";
 
-/** 依 Waypoint 順序逐點：Teleport → 等待 → bot → 解析存檔。結束（不論怎麼結束）一律 stop。 */
+/** 依點的順序逐點：Teleport → 等待 → bot → 解析存檔。結束（不論怎麼結束）一律 stop。 */
 export async function runBatch(
   deps: BatchDeps,
   batchId: number,
   feature: BatchFeature,
-  waypoints: Waypoint[],
+  points: BatchPoint[],
   control: BatchControl,
 ): Promise<void> {
-  const total = waypoints.length;
+  const total = points.length;
   setBatchStatus(deps.db, batchId, "running");
   deps.hub.emit(batchId, { type: "started", batchId, total });
   let error: string | null = null;
@@ -107,11 +107,11 @@ export async function runBatch(
     if (others.length > 0) {
       error = `偵測到其他模擬定位 App 正在運作：${others.join("、")}。請先關掉它再開始。`;
     }
-    for (const [i, w] of waypoints.entries()) {
+    for (const [i, w] of points.entries()) {
       if (error || control.stopRequested) break;
       const index = i + 1;
       const startedAt = Date.now();
-      deps.hub.emit(batchId, { type: "progress", index, total, waypointId: w.id, label: w.label });
+      deps.hub.emit(batchId, { type: "progress", index, total, waypointId: w.waypointId ?? null, label: w.label });
       await deps.device.teleport({ lat: w.lat, lng: w.lng });
       await sleep(deps.waitMs, control.signal);
       if (control.signal.aborted) break;
@@ -133,13 +133,13 @@ export async function runBatch(
       if (result.killed) {
         outcome = { result: [], error: FORCE_NOTE };
       } else {
-        outcome = feature.interpret({ deps, batchId, waypoint: w, index, result, stderr, runName, abortShotUrl: shot });
+        outcome = feature.interpret({ deps, batchId, point: w, index, result, stderr, runName, abortShotUrl: shot });
         if (!(feature.okExitCodes ?? [0]).includes(result.exitCode) && !outcome.error) outcome.error = failureReason(stderr, result.runDir);
         if (outcome.error && outcome.report !== false) {
           deps.hub.emit(batchId, { type: "waypoint-failed", index, error: outcome.error, ...(shot ? { screenshotUrl: shot } : {}) });
         }
       }
-      saveWaypointRun(deps.db, { batchId, waypointId: w.id, index, exitCode: result.killed ? null : result.exitCode, result: outcome.result, runDir: runName, error: outcome.error, durationMs: Date.now() - startedAt });
+      saveWaypointRun(deps.db, { batchId, point: w, index, exitCode: result.killed ? null : result.exitCode, result: outcome.result, runDir: runName, error: outcome.error, durationMs: Date.now() - startedAt });
     }
   } catch (e) {
     error = errorMessage(e);

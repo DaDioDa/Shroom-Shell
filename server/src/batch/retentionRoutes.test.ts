@@ -73,7 +73,7 @@ describe("run 資料夾上限：觸發時機", () => {
       mkdirSync(join(dir, "runs", n), { recursive: true });
       writeFileSync(join(dir, "runs", n, "sighting-01.png"), Buffer.alloc(100));
       const id = Number(seeded.prepare("INSERT INTO batches (list_id, feature, params, status, created_at) VALUES (1, 'target-search', '{}', 'done', 'x')").run().lastInsertRowid);
-      seeded.prepare("INSERT INTO waypoint_runs (batch_id, waypoint_id, idx, exit_code, result_json, run_dir) VALUES (?, 1, 1, 0, '[]', ?)").run(id, n);
+      seeded.prepare("INSERT INTO waypoint_runs (batch_id, waypoint_id, lat, lng, label, idx, exit_code, result_json, run_dir) VALUES (?, 1, 1, 1, '', 1, 0, '[]', ?)").run(id, n);
     }
     seeded.close();
     const app = build({ runsLimitBytes: 150 });

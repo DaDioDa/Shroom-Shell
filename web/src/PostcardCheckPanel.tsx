@@ -18,10 +18,7 @@ export function PostcardCheckPanel({ list, waypoints, view, onStarted }: Props) 
   }, [view.stderr.length]);
   const running = view.status === "running";
   const missing = missingSpotNames(waypoints);
-  const nameOf = (id: number) => {
-    const w = waypoints.find((x) => x.id === id);
-    return w ? w.label || `${w.lat}, ${w.lng}` : `Waypoint ${id}`;
-  };
+  const nameOf = (p: { label: string; lat: number; lng: number }) => p.label || `${p.lat}, ${p.lng}`;
   const start = async () => {
     if (!list) return;
     setStartError(null);
@@ -53,7 +50,7 @@ export function PostcardCheckPanel({ list, waypoints, view, onStarted }: Props) 
             {view.stderr.join("\n")}
           </pre>
           {view.checkResults.map((o) => (
-            <CheckResultCard key={o.index} outcome={o} name={nameOf(o.waypointId)} />
+            <CheckResultCard key={o.index} outcome={o} name={nameOf(o.point)} />
           ))}
         </>
       )}

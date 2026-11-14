@@ -1,4 +1,4 @@
-import { sweepRadius, type BotSighting, type QuietResult, type QuietSearchParams, type Waypoint } from "@shell/shared";
+import { sweepRadius, type BotSighting, type QuietResult, type QuietSearchParams, type BatchPoint } from "@shell/shared";
 import { parseQuietStdout } from "../bot/parseQuiet.js";
 import { failureReason, type BatchFeature } from "./runBatch.js";
 import { saveSighting } from "./store.js";
@@ -6,8 +6,8 @@ import { saveSighting } from "./store.js";
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** 功能只負責「這一點跑什麼指令」：`quiet --radius <R>`（`--runs-dir` 由 runner 加）。 */
-export function quietArgs(params: QuietSearchParams, waypoint: Waypoint): string[] {
-  return ["--radius", String(sweepRadius(waypoint, params.radius))];
+export function quietArgs(params: QuietSearchParams, point: BatchPoint): string[] {
+  return ["--radius", String(sweepRadius({ radius: point.radius ?? null }, params.radius))];
 }
 
 const EXPECTED_VERDICT: Record<number, boolean | null> = { 0: true, 1: false, 2: null };
@@ -34,16 +34,16 @@ export function quietSearchFeature(params: QuietSearchParams): BatchFeature {
   return {
     plan: (w) => ({ command: "quiet", args: quietArgs(params, w) }),
     okExitCodes: [0, 1, 2],
-    interpret({ deps, batchId, waypoint, index, result: run, stderr, runName, abortShotUrl }) {
+    interpret({ deps, batchId, point, index, result: run, stderr, runName, abortShotUrl }) {
       const result = interpretQuietRun({ exitCode: run.exitCode, stdout: run.stdout, stderr, runDir: run.runDir });
       const giants: BotSighting[] = result.verdict === null ? [] : result.giants;
       for (const g of giants) {
-        const saved = saveSighting(deps.db, batchId, waypoint.id, g, runName, deps.runsDir);
+        const saved = saveSighting(deps.db, batchId, point.waypointId ?? null, g, runName, deps.runsDir);
         deps.hub.emit(batchId, { type: "sighting", sighting: saved });
       }
-      deps.hub.emit(batchId, { type: "quiet-result", index, waypointId: waypoint.id, radius: sweepRadius(waypoint, params.radius), result, ...(abortShotUrl ? { screenshotUrl: abortShotUrl } : {}) });
+      deps.hub.emit(batchId, { type: "quiet-result", index, waypointId: point.waypointId ?? null, point, radius: sweepRadius({ radius: point.radius ?? null }, params.radius), result, ...(abortShotUrl ? { screenshotUrl: abortShotUrl } : {}) });
       // 這點實際用的半徑一起存進 result_json，歷史頁才還原得出來（Waypoint 半徑之後可能被改）。
-      return { result: { ...result, radius: sweepRadius(waypoint, params.radius) }, error: result.verdict === null ? result.reason : null, report: false };
+      return { result: { ...result, radius: sweepRadius({ radius: point.radius ?? null }, params.radius) }, error: result.verdict === null ? result.reason : null, report: false };
     },
   };
 }

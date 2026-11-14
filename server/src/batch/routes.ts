@@ -167,7 +167,7 @@ export function registerBatchRoutes(
     return reply.code(201).send({ batchId, listId: gridId });
   });
 
-  app.get("/api/history", async () => listHistory(db));
+  app.get<{ Querystring: { feature?: string } }>("/api/history", async (req) => listHistory(db, req.query.feature));
 
   app.get<{ Params: { id: string } }>("/api/history/:id", async (req, reply) => {
     return getHistory(db, Number(req.params.id), deps.runsDir) ?? reply.code(404).send({ error: "找不到 Batch" });
@@ -186,7 +186,7 @@ export function registerBatchRoutes(
     return getBatch(db, Number(req.params.id)) ?? reply.code(404).send({ error: "找不到 Batch" });
   });
 
-  app.get("/api/sightings", async () => listAllSightings(db, deps.runsDir));
+  app.get<{ Querystring: { feature?: string } }>("/api/sightings", async (req) => listAllSightings(db, deps.runsDir, req.query.feature));
 
   app.get<{ Params: { id: string } }>("/api/batches/:id/sightings", async (req) => listSightings(db, Number(req.params.id), deps.runsDir));
 

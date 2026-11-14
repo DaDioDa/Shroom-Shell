@@ -95,8 +95,10 @@ const toRow = (db: Db, b: BatchRow): HistoryRow => ({
 });
 
 /** 所有功能的 Batch，新的在前。 */
-export function listHistory(db: Db): HistoryRow[] {
-  const rows = db.prepare(`${SELECT_BATCH} ORDER BY b.id DESC`).all() as unknown as BatchRow[];
+export function listHistory(db: Db, feature?: string): HistoryRow[] {
+  const rows = (feature === undefined
+    ? db.prepare(`${SELECT_BATCH} ORDER BY b.id DESC`).all()
+    : db.prepare(`${SELECT_BATCH} WHERE b.feature = ? ORDER BY b.id DESC`).all(feature)) as unknown as BatchRow[];
   return rows.map((b) => toRow(db, b));
 }
 

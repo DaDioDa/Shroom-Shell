@@ -29,12 +29,14 @@ export function CheckResultCard({ outcome, name }: { outcome: CheckOutcome; name
             <img src={outcome.abortUrl} alt="abort.png" />
           </a>
         )}
+        {outcome.imagesCleared && <span className="muted">圖片已清除</span>}
         {outcome.frameUrl && (
           <a href={outcome.frameUrl} target="_blank" rel="noreferrer">
             <img src={outcome.frameUrl} alt="起點畫面" />
           </a>
         )}
         {outcome.result.found === true &&
+          !outcome.imagesCleared &&
           (outcome.postcardUrl ? (
             <a href={outcome.postcardUrl} target="_blank" rel="noreferrer">
               <img src={outcome.postcardUrl} alt="Postcard" />

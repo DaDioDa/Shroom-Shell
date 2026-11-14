@@ -113,4 +113,15 @@ describe("Postcard Check Batch", () => {
     expect(d.waypoints[0]!.check).toMatchObject({ result: { found: true }, frameUrl: "/api/runs/fake-run-001/frame.png" });
     expect(d.waypoints[1]!.check).toMatchObject({ result: { found: false }, frameUrl: null });
   });
+
+  it("圖片被上限清掉後：歷史頁的結果標 imagesCleared（卡片顯示「圖片已清除」），即時結果不標", async () => {
+    const t = await setup("1,2 甲 @生賀神社", (i) => foundReply(i));
+    const { batchId, checks } = await run(t);
+    expect(checks[0]!.imagesCleared).toBe(false);
+    expect(((await t.app.inject(`/api/history/${batchId}`)).json() as HistoryDetail).waypoints[0]!.check!.imagesCleared).toBe(false);
+    await t.app.inject({ method: "PUT", url: "/api/settings", payload: { runsLimitBytes: 1 } });
+    const d = (await t.app.inject(`/api/history/${batchId}`)).json() as HistoryDetail;
+    expect(d.imagesCleared).toBe(true);
+    expect(d.waypoints[0]!.check).toMatchObject({ result: { found: true }, frameUrl: null, postcardUrl: null, imagesCleared: true });
+  });
 });

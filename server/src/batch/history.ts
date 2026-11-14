@@ -123,7 +123,7 @@ export function getHistory(db: Db, id: number, runsDir: string): HistoryDetail |
       runDir: r.run_dir,
       abortUrl,
       sightings: sightings.filter((s) => s.waypointId === r.waypoint_id),
-      check: b.feature === "postcard-check" && checkResult ? toOutcome(runsDir, r.run_dir, r.idx, r.waypoint_id, checkResult, abortUrl) : null,
+      check: b.feature === "postcard-check" && checkResult ? toOutcome(runsDir, r.run_dir, r.idx, r.waypoint_id, checkResult, abortUrl, b.images_cleared === 1) : null,
       quiet: stored ? { radius, result: result as QuietResult } : null,
     };
   });

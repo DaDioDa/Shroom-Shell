@@ -35,6 +35,8 @@ export interface CheckOutcome {
   postcardUrl: string | null;
   /** 單點中止時 run 資料夾裡的 abort.png 網址（沒有就是 null）。 */
   abortUrl: string | null;
+  /** run 資料夾已因超過上限被清掉：卡片顯示「圖片已清除」，而不是「沒有 Postcard」。 */
+  imagesCleared: boolean;
 }
 
 export interface PostcardCheckParams {

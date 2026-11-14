@@ -14,7 +14,7 @@ export function checkImageUrl(runsDir: string, runName: string | null, absPath: 
   return `/api/runs/${runName}/${basename(full)}`;
 }
 
-export function toOutcome(runsDir: string, runName: string | null, index: number, waypointId: number, result: CheckResult, abortUrl: string | null = null): CheckOutcome {
+export function toOutcome(runsDir: string, runName: string | null, index: number, waypointId: number, result: CheckResult, abortUrl: string | null = null, imagesCleared = false): CheckOutcome {
   const found = result.found === true ? result : null;
   return {
     index,
@@ -23,6 +23,7 @@ export function toOutcome(runsDir: string, runName: string | null, index: number
     frameUrl: checkImageUrl(runsDir, runName, found?.frame ?? null),
     postcardUrl: checkImageUrl(runsDir, runName, found?.postcard ?? null),
     abortUrl,
+    imagesCleared,
   };
 }
 

@@ -1,7 +1,7 @@
 import L from "leaflet";
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { useRegionEditorLayer, type RegionEditorState } from "./regionEditorLayer.js";
-import { sightingMarker, sweepAreaSquare, type Region, type StoredSighting, type SweepAreaColor, type Waypoint } from "@shell/shared";
+import { parseCoordinate, sightingMarker, sweepAreaSquare, type Region, type StoredSighting, type SweepAreaColor, type Waypoint } from "@shell/shared";
 
 /** Postcard Check 的結果標記。 */
 export interface CheckMark {
@@ -183,5 +183,78 @@ export function WaypointMap({
     if (region) L.rectangle([[region.south, region.west], [region.north, region.east]], { color: "#1971c2", weight: 2, fillOpacity: 0.08, dashArray: "6 4" }).addTo(g);
   }, [region]);
 
-  return <div ref={el} className="map" />;
+  return (
+    <div className="map-wrap">
+      <div ref={el} className="map" />
+      <CoordinateSearch map={mapInst} />
+    </div>
+  );
+}
+
+/** 地圖上方的座標搜尋列：輸入「緯度, 經度」或 Google Maps 連結，地圖飛過去並放一個大頭針。 */
+function CoordinateSearch({ map }: { map: L.Map | null }) {
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
+  const [pinned, setPinned] = useState(false);
+  const pin = useRef<L.CircleMarker | null>(null);
+
+  const clearPin = () => {
+    pin.current?.remove();
+    pin.current = null;
+    setPinned(false);
+  };
+  useEffect(() => () => {
+    pin.current?.remove();
+    pin.current = null;
+  }, [map]);
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!map) return;
+    const r = parseCoordinate(text);
+    if (!r.ok) {
+      setError(r.reason);
+      return;
+    }
+    setError("");
+    clearPin();
+    pin.current = L.circleMarker([r.lat, r.lng], { radius: 9, color: "#c92a2a", fillColor: "#fa5252", fillOpacity: 0.9, weight: 3 })
+      .bindTooltip(`${r.lat}, ${r.lng}`, { permanent: true, direction: "top" })
+      .addTo(map);
+    setPinned(true);
+    map.flyTo([r.lat, r.lng], Math.max(map.getZoom(), 16));
+  };
+
+  const reset = () => {
+    setText("");
+    setError("");
+    clearPin();
+  };
+
+  return (
+    <div className="map-search">
+      <form onSubmit={submit}>
+        <input
+          value={text}
+          placeholder="輸入座標，例如 -15.5885, -67.2519"
+          onChange={(e) => {
+            setText(e.target.value);
+            if (error) setError("");
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") reset();
+          }}
+        />
+        {(text || pinned) && (
+          <button type="button" title="清除" onClick={reset}>
+            ✕
+          </button>
+        )}
+        <button type="submit" title="移到這個座標">
+          前往
+        </button>
+      </form>
+      {error && <div className="errors">{error}</div>}
+    </div>
+  );
 }

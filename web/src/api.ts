@@ -42,7 +42,7 @@ export const api = {
       ...(extra.label ? { label: extra.label } : {}),
       ...(extra.spotName ? { spotName: extra.spotName } : {}),
     }),
-  updateWaypoint: (id: number, patch: { label?: string; radius?: number | null; spotName?: string | null }) =>
+  updateWaypoint: (id: number, patch: { lat?: number; lng?: number; label?: string; radius?: number | null; spotName?: string | null }) =>
     call<Waypoint>("PATCH", `/api/waypoints/${id}`, patch),
   deleteWaypoint: (id: number) => call<void>("DELETE", `/api/waypoints/${id}`),
   reorder: (listId: number, ids: number[]) => call<Waypoint[]>("PUT", `/api/lists/${listId}/order`, { ids }),

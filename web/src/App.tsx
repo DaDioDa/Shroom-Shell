@@ -7,6 +7,7 @@ import { CellPanel, type CellInfo } from "./CellPanel.js";
 import { DiscoveryPanel } from "./DiscoveryPanel.js";
 import { useDiscoveryEditor } from "./useDiscoveryEditor.js";
 import type { RegionEditorState } from "./regionEditorLayer.js";
+import type { SweepBoxEditorState } from "./sweepBoxLayer.js";
 import { ListManager } from "./ListManager.js";
 import { WaypointForm } from "./WaypointForm.js";
 import { HistoryPanel } from "./HistoryPanel.js";
@@ -178,7 +179,25 @@ export function App() {
   // 預覽與結果疊畫（結果是實線方格、預覽是虛線藍框），有結果後拉 slider 仍有回饋。
   const previewRadius = tab === "quiet" ? quietRadius : tab === "target" ? targetRadius : null;
   const showPreview = layers.preview && previewRadius !== null;
-  const previewAreas: SweepArea[] = showPreview ? waypoints.map((w) => ({ lat: w.lat, lng: w.lng, radius: sweepRadius(w, previewRadius), color: "preview" as const })) : [];
+  // 無人巨菇的「在地圖上新增」模式：預覽框改成可拖移（移動 Waypoint）、可拖角縮放（設定該 Waypoint 的半徑）。
+  const boxEditing = tab === "quiet" && addMode && selectedId !== null;
+  const previewAreas: SweepArea[] = showPreview && !boxEditing ? waypoints.map((w) => ({ lat: w.lat, lng: w.lng, radius: sweepRadius(w, previewRadius), color: "preview" as const })) : [];
+  const commitBox = async (id: number, patch: { lat: number; lng: number } | { radius: number }) => {
+    setNotice(null);
+    // 先在畫面上套用，存檔失敗再重抓。
+    setWaypoints((ws) => ws.map((w) => (w.id === id ? { ...w, ...patch } : w)));
+    try {
+      const saved = await api.updateWaypoint(id, patch);
+      setWaypoints((ws) => ws.map((w) => (w.id === id ? saved : w)));
+      setEditing((e) => (e?.mode === "edit" && e.w.id === id ? { mode: "edit", w: saved } : e));
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : String(e));
+      await reload();
+    }
+  };
+  const boxEditor: SweepBoxEditorState | null = boxEditing
+    ? { boxes: waypoints.map((w) => ({ id: w.id, lat: w.lat, lng: w.lng, radius: sweepRadius(w, quietRadius) })), onCommit: (id, patch) => void commitBox(id, patch), onClick: (lat, lng) => void addAt(lat, lng) }
+    : null;
 
   const checkSource = tab === "history" ? (historyDetail?.waypoints.flatMap((w) => (w.check ? [w.check] : [])) ?? []) : tab === "postcard" ? view.checkResults : [];
   const checkMarks: CheckMark[] = checkSource.flatMap((o) => {
@@ -208,6 +227,7 @@ export function App() {
         now={now}
         areas={editorActive ? previewAreas : [...areas, ...previewAreas]}
         editor={editorState}
+        boxEditor={boxEditor}
         centerRef={centerRef}
         checkMarks={checkMarks}
         historyPoints={historyPoints}
@@ -248,7 +268,7 @@ export function App() {
         )}
         {feature && editing && (
           <WaypointForm
-            key={editing.mode === "edit" ? `edit:${editing.w.id}` : `add:${editing.lat},${editing.lng}`}
+            key={editing.mode === "edit" ? `edit:${editing.w.id}:${editing.w.radius}` : `add:${editing.lat},${editing.lng}`}
             feature={feature}
             title={editing.mode === "edit" ? "編輯 Waypoint" : `新增 Waypoint（${editing.lat.toFixed(6)}, ${editing.lng.toFixed(6)}）`}
             initial={editing.mode === "edit" ? { label: editing.w.label, radius: editing.w.radius, spotName: editing.w.spotName ?? null } : { label: "", radius: null, spotName: null }}

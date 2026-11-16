@@ -109,7 +109,11 @@ export function ListManager({ feature, lists, selectedId, waypoints, onSelect, o
         <button className={addMode && selected ? "active" : ""} aria-pressed={addMode && selected !== null} onClick={toggleAdd}>
           ＋ 在地圖上新增
         </button>
-        {addMode && selected && <span className="muted"> 點地圖加入「{selected.name}」</span>}
+        {addMode && selected && (
+          <span className="muted">
+            {" "}點地圖加入「{selected.name}」{feature === "quiet-search" && "；拖框可移動，拖四角可改半徑"}
+          </span>
+        )}
         {(hint ?? notice) && <span className="errors"> {hint ?? notice}</span>}
       </div>
       {selected && (

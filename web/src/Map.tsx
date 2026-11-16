@@ -1,6 +1,7 @@
 import L from "leaflet";
 import { useEffect, useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { useRegionEditorLayer, type RegionEditorState } from "./regionEditorLayer.js";
+import { useSweepBoxLayer, type SweepBoxEditorState } from "./sweepBoxLayer.js";
 import { parseCoordinate, sightingMarker, sweepAreaSquare, type Region, type StoredSighting, type SweepAreaColor, type Waypoint } from "@shell/shared";
 
 /** Postcard Check 的結果標記。 */
@@ -41,6 +42,7 @@ export function WaypointMap({
   historyPoints = [],
   region = null,
   editor = null,
+  boxEditor = null,
   centerRef,
   onAreaClick,
   now = Date.now(),
@@ -56,6 +58,8 @@ export function WaypointMap({
   region?: Region | null;
   /** Region 編輯器（8 個把手、本體平移、格子預覽）；null＝不顯示（鎖定中或沒有 Region）。 */
   editor?: RegionEditorState | null;
+  /** 無人巨菇新增模式：Waypoint 的 2R 框可拖移、可縮放；null＝不顯示。 */
+  boxEditor?: SweepBoxEditorState | null;
   /** 讓外面問得到目前的地圖中央（「放一個 Region」用）。 */
   centerRef?: MutableRefObject<(() => { lat: number; lng: number }) | null>;
   /** 點 Sweep 方格（有 id 的才可點）。 */
@@ -65,6 +69,9 @@ export function WaypointMap({
 }) {
   const [mapInst, setMapInst] = useState<L.Map | null>(null);
   useRegionEditorLayer(mapInst, editor);
+  useSweepBoxLayer(mapInst, boxEditor);
+  // 只在換清單時把地圖縮放到清單範圍；同一份清單新增、移動、改半徑不跳動。
+  const fittedList = useRef<number | null>(null);
   const areaClickRef = useRef(onAreaClick);
   areaClickRef.current = onAreaClick;
   const regionLayer = useRef<L.LayerGroup | null>(null);
@@ -115,7 +122,9 @@ export function WaypointMap({
       marker.bindTooltip(w.label || `${w.lat}, ${w.lng}`, { permanent: true, direction: "top" });
       pts.push([w.lat, w.lng]);
     }
-    if (pts.length) map.current!.fitBounds(L.latLngBounds(pts), { maxZoom: 16, padding: [40, 40] });
+    const listId = waypoints[0]?.listId ?? null;
+    if (pts.length && listId !== fittedList.current) map.current!.fitBounds(L.latLngBounds(pts), { maxZoom: 16, padding: [40, 40] });
+    fittedList.current = listId;
   }, [waypoints]);
 
   useEffect(() => {

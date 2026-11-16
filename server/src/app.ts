@@ -196,14 +196,19 @@ export function buildApp(opts: AppOptions = {}): FastifyInstance {
     const id = Number(req.params.id);
     const row = getWaypoint(id);
     if (!row) return reply.code(404).send({ error: "找不到 Waypoint" });
-    const b = (req.body ?? {}) as { label?: unknown; radius?: unknown; spotName?: unknown };
+    const b = (req.body ?? {}) as { lat?: unknown; lng?: unknown; label?: unknown; radius?: unknown; spotName?: unknown };
+    // 移動 Waypoint：lat、lng 要一起給且合法。
+    const moving = b.lat !== undefined || b.lng !== undefined;
+    if (moving && !isCoord(b.lat, b.lng)) return reply.code(400).send({ error: "lat／lng 不合法" });
+    const lat = moving ? (b.lat as number) : row.lat;
+    const lng = moving ? (b.lng as number) : row.lng;
     const label = typeof b.label === "string" ? b.label.trim() : row.label;
     const radius = b.radius === null ? null : typeof b.radius === "number" && b.radius > 0 ? b.radius : row.radius;
     const spotName =
       b.spotName === null ? null : typeof b.spotName === "string" ? b.spotName.trim() || null : row.spot_name;
     const check = checkWaypointFields(listFeatureOf(row.list_id)!, { radius, spotName });
     if (!check.ok) return reply.code(400).send({ error: check.reason });
-    db.prepare("UPDATE waypoints SET label = ?, radius = ?, spot_name = ? WHERE id = ?").run(label, radius, spotName, id);
+    db.prepare("UPDATE waypoints SET lat = ?, lng = ?, label = ?, radius = ?, spot_name = ? WHERE id = ?").run(lat, lng, label, radius, spotName, id);
     return toWaypoint(getWaypoint(id)!);
   });
 

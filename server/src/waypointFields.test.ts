@@ -81,6 +81,27 @@ describe("修改 Waypoint 檢查修改後的完整欄位", () => {
   });
 });
 
+describe("PATCH 移動 Waypoint", () => {
+  it("lat、lng 一起給就移到新座標，其他欄位不變", async () => {
+    const app = setup();
+    const id = await mkList(app, "quiet-search");
+    const wp = (await addWp(app, id, { label: "甲", radius: 300 })).json();
+    const r = await patchWp(app, wp.id, { lat: -15.5885, lng: -67.2519 });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ lat: -15.5885, lng: -67.2519, label: "甲", radius: 300 });
+    expect((await app.inject(`/api/lists/${id}/waypoints`)).json()[0]).toMatchObject({ lat: -15.5885, lng: -67.2519 });
+  });
+  it("座標不合法或只給一個就回 400，原座標不變", async () => {
+    const app = setup();
+    const id = await mkList(app, "quiet-search");
+    const wp = (await addWp(app, id, {})).json();
+    expect((await patchWp(app, wp.id, { lat: 95, lng: 2 })).statusCode).toBe(400);
+    expect((await patchWp(app, wp.id, { lat: 3 })).statusCode).toBe(400);
+    expect((await patchWp(app, wp.id, { lng: "x", lat: 3 })).statusCode).toBe(400);
+    expect((await app.inject(`/api/lists/${id}/waypoints`)).json()[0]).toMatchObject({ lat: 1, lng: 2 });
+  });
+});
+
 describe("匯入依清單功能檢查", () => {
   it("美片菇：不合規則的行進 errors 附原因，合規則的行匯入", async () => {
     const app = setup();

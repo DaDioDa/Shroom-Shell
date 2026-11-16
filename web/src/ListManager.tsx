@@ -111,7 +111,7 @@ export function ListManager({ feature, lists, selectedId, waypoints, onSelect, o
         </button>
         {addMode && selected && (
           <span className="muted">
-            {" "}點地圖加入「{selected.name}」{feature === "quiet-search" && "；拖框可移動，拖四角可改半徑"}
+            {" "}點地圖加入「{selected.name}」{feature === "quiet-search" && "；拖框可移動，拖四角可改半徑"}{feature === "postcard-check" && "；拖點可移動位置"}
           </span>
         )}
         {(hint ?? notice) && <span className="errors"> {hint ?? notice}</span>}

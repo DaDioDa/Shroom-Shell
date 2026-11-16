@@ -32,10 +32,24 @@ export interface SweepArea {
 
 const AREA_COLORS: Record<SweepAreaColor | "preview", string> = { green: "#2f9e44", red: "#e03131", gray: "#868e96", preview: "#1971c2" };
 
+/** 可拖曳的圓點（L.circleMarker 不能拖，改用 divIcon 的 L.marker，外觀接近）。 */
+const dotIcon = (fill: string, stroke: string, size: number, dashed = false) =>
+  L.divIcon({
+    className: "",
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${fill};border:3px ${dashed ? "dashed" : "solid"} ${stroke};box-sizing:border-box;cursor:move"></div>`,
+    iconSize: [size, size],
+  });
+const WAYPOINT_DOT = dotIcon("rgba(51,136,255,0.35)", "#3388ff", 18);
+const PENDING_DOT = dotIcon("rgba(253,126,20,0.5)", "#e8590c", 20, true);
+
 export function WaypointMap({
   waypoints,
   onMapClick,
   onMarkerEdit,
+  draggable = false,
+  onWaypointMove,
+  pending = null,
+  onPendingMove,
   sightings = [],
   areas = [],
   checkMarks = [],
@@ -50,6 +64,12 @@ export function WaypointMap({
   waypoints: Waypoint[];
   onMapClick?: (lat: number, lng: number) => void;
   onMarkerEdit?: (w: Waypoint) => void;
+  /** true＝Waypoint 標記可拖曳，放開時 onWaypointMove 回報新位置。 */
+  draggable?: boolean;
+  onWaypointMove?: (w: Waypoint, lat: number, lng: number) => void;
+  /** 還沒存檔的新增點（美片菇在填 Spot Name 時）：畫成可拖曳的橘點。 */
+  pending?: { lat: number; lng: number } | null;
+  onPendingMove?: (lat: number, lng: number) => void;
   sightings?: StoredSighting[];
   areas?: SweepArea[];
   checkMarks?: CheckMark[];
@@ -75,8 +95,9 @@ export function WaypointMap({
   const areaClickRef = useRef(onAreaClick);
   areaClickRef.current = onAreaClick;
   const regionLayer = useRef<L.LayerGroup | null>(null);
-  const clickRef = useRef({ onMapClick, onMarkerEdit });
-  clickRef.current = { onMapClick, onMarkerEdit };
+  const clickRef = useRef({ onMapClick, onMarkerEdit, onWaypointMove, onPendingMove });
+  clickRef.current = { onMapClick, onMarkerEdit, onWaypointMove, onPendingMove };
+  const pendingLayer = useRef<L.LayerGroup | null>(null);
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
@@ -98,6 +119,7 @@ export function WaypointMap({
     checkLayer.current = L.layerGroup().addTo(m);
     layer.current = L.layerGroup().addTo(m);
     sightingLayer.current = L.layerGroup().addTo(m);
+    pendingLayer.current = L.layerGroup().addTo(m);
     map.current = m;
     setMapInst(m);
     if (centerRef) centerRef.current = () => m.getCenter();
@@ -113,19 +135,47 @@ export function WaypointMap({
     g.clearLayers();
     const pts: L.LatLngTuple[] = [];
     for (const w of waypoints) {
-      const marker = L.circleMarker([w.lat, w.lng], { radius: 8 }).addTo(g);
-      // 點標記展開畫面內的編輯表單。
-      marker.on("click", (e) => {
-        L.DomEvent.stopPropagation(e);
-        clickRef.current.onMarkerEdit?.(w);
-      });
-      marker.bindTooltip(w.label || `${w.lat}, ${w.lng}`, { permanent: true, direction: "top" });
+      const tooltip = w.label || `${w.lat}, ${w.lng}`;
+      if (draggable) {
+        // 拖曳模式：放開才回報一次新位置；單擊（沒拖）仍是開編輯表單。
+        const marker = L.marker([w.lat, w.lng], { icon: WAYPOINT_DOT, draggable: true }).addTo(g);
+        marker.on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          clickRef.current.onMarkerEdit?.(w);
+        });
+        marker.on("dragend", () => {
+          const p = marker.getLatLng();
+          clickRef.current.onWaypointMove?.(w, p.lat, p.lng);
+        });
+        marker.bindTooltip(tooltip, { permanent: true, direction: "top", offset: [0, -9] });
+      } else {
+        const marker = L.circleMarker([w.lat, w.lng], { radius: 8 }).addTo(g);
+        // 點標記展開畫面內的編輯表單。
+        marker.on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          clickRef.current.onMarkerEdit?.(w);
+        });
+        marker.bindTooltip(tooltip, { permanent: true, direction: "top" });
+      }
       pts.push([w.lat, w.lng]);
     }
     const listId = waypoints[0]?.listId ?? null;
     if (pts.length && listId !== fittedList.current) map.current!.fitBounds(L.latLngBounds(pts), { maxZoom: 16, padding: [40, 40] });
     fittedList.current = listId;
-  }, [waypoints]);
+  }, [waypoints, draggable]);
+
+  useEffect(() => {
+    const g = pendingLayer.current!;
+    g.clearLayers();
+    if (!pending) return;
+    const marker = L.marker([pending.lat, pending.lng], { icon: PENDING_DOT, draggable: true, zIndexOffset: 1000 }).addTo(g);
+    marker.bindTooltip("新增中：填好 Spot Name 後儲存（可拖曳調整）", { permanent: true, direction: "top", offset: [0, -10] });
+    marker.on("click", (e) => L.DomEvent.stopPropagation(e));
+    marker.on("dragend", () => {
+      const p = marker.getLatLng();
+      clickRef.current.onPendingMove?.(p.lat, p.lng);
+    });
+  }, [pending?.lat, pending?.lng]);
 
   useEffect(() => {
     const g = sightingLayer.current!;

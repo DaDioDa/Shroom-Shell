@@ -119,7 +119,7 @@ export function App() {
   const addAt = async (lat: number, lng: number) => {
     if (selectedId === null || !addMode) return;
     setNotice(null);
-    // 美片菇要 Spot Name：用畫面內的表單問。
+    // 美片菇要 Spot Name：用畫面內的表單問，地圖先畫一個新增中的點；表單開著時再點地圖＝改這個點的位置。
     if (feature === "postcard-check") return setEditing({ mode: "add", lat, lng });
     try {
       await api.addWaypoint(selectedId, lat, lng);
@@ -182,7 +182,7 @@ export function App() {
   // 無人巨菇的「在地圖上新增」模式：預覽框改成可拖移（移動 Waypoint）、可拖角縮放（設定該 Waypoint 的半徑）。
   const boxEditing = tab === "quiet" && addMode && selectedId !== null;
   const previewAreas: SweepArea[] = showPreview && !boxEditing ? waypoints.map((w) => ({ lat: w.lat, lng: w.lng, radius: sweepRadius(w, previewRadius), color: "preview" as const })) : [];
-  const commitBox = async (id: number, patch: { lat: number; lng: number } | { radius: number }) => {
+  const commitWaypoint = async (id: number, patch: { lat: number; lng: number } | { radius: number }) => {
     setNotice(null);
     // 先在畫面上套用，存檔失敗再重抓。
     setWaypoints((ws) => ws.map((w) => (w.id === id ? { ...w, ...patch } : w)));
@@ -195,8 +195,11 @@ export function App() {
       await reload();
     }
   };
+  // 美片菇的「在地圖上新增」模式：既有的點可拖曳，放開就存新位置。
+  const dotDragging = tab === "postcard" && addMode && selectedId !== null;
+  const pendingAdd = tab === "postcard" && editing?.mode === "add" ? { lat: editing.lat, lng: editing.lng } : null;
   const boxEditor: SweepBoxEditorState | null = boxEditing
-    ? { boxes: waypoints.map((w) => ({ id: w.id, lat: w.lat, lng: w.lng, radius: sweepRadius(w, quietRadius) })), onCommit: (id, patch) => void commitBox(id, patch), onClick: (lat, lng) => void addAt(lat, lng) }
+    ? { boxes: waypoints.map((w) => ({ id: w.id, lat: w.lat, lng: w.lng, radius: sweepRadius(w, quietRadius) })), onCommit: (id, patch) => void commitWaypoint(id, patch), onClick: (lat, lng) => void addAt(lat, lng) }
     : null;
 
   const checkSource = tab === "history" ? (historyDetail?.waypoints.flatMap((w) => (w.check ? [w.check] : [])) ?? []) : tab === "postcard" ? view.checkResults : [];
@@ -235,6 +238,10 @@ export function App() {
         onAreaClick={clickCell}
         onMapClick={feature && selectedId !== null && addMode ? addAt : undefined}
         onMarkerEdit={edit}
+        draggable={dotDragging}
+        onWaypointMove={(w, lat, lng) => void commitWaypoint(w.id, { lat, lng })}
+        pending={pendingAdd}
+        onPendingMove={(lat, lng) => setEditing((e) => (e?.mode === "add" ? { mode: "add", lat, lng } : e))}
       />
       <div className="panel">
         <div className="tabs">
@@ -268,7 +275,8 @@ export function App() {
         )}
         {feature && editing && (
           <WaypointForm
-            key={editing.mode === "edit" ? `edit:${editing.w.id}:${editing.w.radius}` : `add:${editing.lat},${editing.lng}`}
+            // 新增中的點被拖動或重點時，表單不重建，已填的 Spot Name 保留。
+            key={editing.mode === "edit" ? `edit:${editing.w.id}:${editing.w.radius}` : "add"}
             feature={feature}
             title={editing.mode === "edit" ? "編輯 Waypoint" : `新增 Waypoint（${editing.lat.toFixed(6)}, ${editing.lng.toFixed(6)}）`}
             initial={editing.mode === "edit" ? { label: editing.w.label, radius: editing.w.radius, spotName: editing.w.spotName ?? null } : { label: "", radius: null, spotName: null }}

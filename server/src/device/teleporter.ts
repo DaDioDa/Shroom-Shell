@@ -43,7 +43,7 @@ export class Teleporter implements Device {
       return { settledMs: Date.now() - started, restarted: false };
     }
 
-    await this.adb.shell(`am stopservice -n ${LOCATION_SERVICE}`);
+    await this.stopLocationService();
     await sleep(500);
     await this.startService(to);
     if (await this.waitFor(to, timeoutMs)) {
@@ -58,7 +58,21 @@ export class Teleporter implements Device {
 
   /** 停止模擬，恢復真實 GPS。 */
   async stop(): Promise<void> {
-    await this.adb.shell(`am stopservice -n ${LOCATION_SERVICE}`);
+    await this.stopLocationService();
+  }
+
+  /**
+   * `am stopservice` 不管結果都以 exit code 255 結束（AOSP 的 runStopService 一律回 -1），
+   * 只能看輸出：「Service stopped」＝停掉了，「was not running」＝本來就沒在跑，兩者都算成功。
+   */
+  private async stopLocationService(): Promise<void> {
+    try {
+      await this.adb.shell(`am stopservice -n ${LOCATION_SERVICE}`);
+    } catch (e) {
+      const out = `${(e as { stdout?: string }).stdout ?? ""}${(e as { stderr?: string }).stderr ?? ""}${(e as Error).message ?? ""}`;
+      if (/Service stopped|was not running/i.test(out)) return;
+      throw e;
+    }
   }
 
   /** 其他有模擬定位權限、而且有服務在跑的 App（會搶走模擬位置）。 */

@@ -1,11 +1,28 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { DeviceLostError } from "./device.js";
 
 const execFileAsync = promisify(execFile);
 
-export const DEFAULT_ADB_PATH =
-  "C:\\Users\\darkl\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe";
+/**
+ * 沒設 ADB_PATH 時的 adb 路徑：依序找 ANDROID_HOME、ANDROID_SDK_ROOT、目前使用者的
+ * %LOCALAPPDATA%\Android\Sdk 底下的 platform-tools；都沒有就交給 PATH 上的 `adb`。
+ */
+export function defaultAdbPath(
+  env: Record<string, string | undefined> = process.env,
+  exists: (path: string) => boolean = existsSync,
+): string {
+  const exe = process.platform === "win32" ? "adb.exe" : "adb";
+  const sdks = [env.ANDROID_HOME, env.ANDROID_SDK_ROOT, env.LOCALAPPDATA && join(env.LOCALAPPDATA, "Android", "Sdk")];
+  for (const sdk of sdks) {
+    if (!sdk) continue;
+    const candidate = join(sdk, "platform-tools", exe);
+    if (exists(candidate)) return candidate;
+  }
+  return "adb";
+}
 
 /** 執行一次 adb；回傳 stdout。預設是 execFile，測試可換掉。 */
 export type AdbExec = (file: string, args: string[], timeoutMs: number) => Promise<string>;
@@ -35,7 +52,7 @@ export class Adb {
   private readonly exec: AdbExec;
 
   constructor(opts: AdbOptions = {}) {
-    this.adbPath = opts.adbPath ?? DEFAULT_ADB_PATH;
+    this.adbPath = opts.adbPath ?? defaultAdbPath();
     this.serial = opts.serial;
     this.exec = opts.exec ?? defaultExec;
   }

@@ -11,7 +11,7 @@
 ## 環境
 
 - 手機：ASUS ROG Phone 2（`ASUS_I01WD`，Android 10）實機，以 USB 連線 adb。
-- adb 預設路徑：`C:\Users\darkl\AppData\Local\Android\Sdk\platform-tools\adb.exe`，可在設定改。
+- adb 預設路徑：依序找 `ANDROID_HOME`、`ANDROID_SDK_ROOT`、目前使用者的 `%LOCALAPPDATA%\Android\Sdk` 底下的 `platform-tools\adb.exe`，都沒有就用 PATH 上的 `adb`；可用環境變數 `ADB_PATH` 改。
 - bot：工作目錄 `F:\pikmin_bloom_bot`，執行 `.venv\Scripts\python.exe -m mushroom_sweep <指令>`。repo 路徑可在設定改。
 - 只綁 `127.0.0.1`，不做登入。
 

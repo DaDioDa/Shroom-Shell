@@ -9,7 +9,8 @@
     "test": "npm test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "teleport": "npm run teleport -w server --"
+    "teleport": "npm run teleport -w server --",
+    "design": "tsx --tsconfig design/tsconfig.json design/build.tsx"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

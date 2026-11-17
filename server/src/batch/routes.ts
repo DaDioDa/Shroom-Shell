@@ -94,6 +94,26 @@ export function registerBatchRoutes(
 
   app.get("/api/queue", async () => queue.snapshot());
 
+  // 手動 Teleport（例如移到某筆 Sighting 的位置）。Batch 在跑時手機歸它管，不接受；GPS 會一直停在這裡，直到下一個 Batch 結束時恢復真實 GPS。
+  let teleporting = false;
+  app.post("/api/teleport", async (req, reply) => {
+    const { lat, lng } = (req.body ?? {}) as { lat?: unknown; lng?: unknown };
+    if (typeof lat !== "number" || typeof lng !== "number" || !(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180)) {
+      return reply.code(400).send({ error: "lat／lng 不合法" });
+    }
+    if (queue.snapshot().running) return reply.code(409).send({ error: "有 Batch 正在執行，等它結束再移動 GPS" });
+    if (teleporting) return reply.code(409).send({ error: "上一次移動還沒完成" });
+    teleporting = true;
+    try {
+      await deps.device.teleport({ lat, lng });
+      return { lat, lng };
+    } catch (e) {
+      return reply.code(500).send({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      teleporting = false;
+    }
+  });
+
   app.post<{ Params: { id: string } }>("/api/batches/:id/cancel", async (req, reply) => {
     const id = Number(req.params.id);
     const mode = ((req.body ?? {}) as { mode?: unknown }).mode ?? "after-waypoint";

@@ -27,6 +27,19 @@ describe("reduceBatchView", () => {
     expect(v.failures).toEqual([{ index: 2, error: "bad target" }]);
   });
 
+  it("同一個 id 的 sighting 是更新（換掉原卡片、不重複）；sighting-removed 拿掉那張", () => {
+    const other = { id: 2, target: "一般 *" } as StoredSighting;
+    const updated = { ...sighting, spot_name: "補齊後" } as StoredSighting;
+    const v = run([
+      { type: "started", batchId: 1, total: 1 },
+      { type: "sighting", sighting },
+      { type: "sighting", sighting: other },
+      { type: "sighting", sighting: updated },
+    ]);
+    expect(v.sightings).toEqual([updated, other]);
+    expect(reduceBatchView(v, { type: "sighting-removed", id: 1 }).sightings).toEqual([other]);
+  });
+
   it("quiet-result 依序累積（地圖正方形與結果卡片的來源）；新的 started 會清掉", () => {
     const result = { quiet_area: false, verdict: false, reason: "有人在打", giants: [], claimed: { cell: 3, participant_count: null }, unread: 1 };
     const events: BatchEvent[] = [

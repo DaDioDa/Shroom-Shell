@@ -55,8 +55,13 @@ export function reduceBatchView(v: BatchView, e: BatchEvent): BatchView {
       return { ...v, index: e.index, total: e.total, label: e.label };
     case "stderr":
       return { ...v, stderr: [...v.stderr, e.line] };
-    case "sighting":
-      return { ...v, sightings: [...v.sightings, e.sighting] };
+    case "sighting": {
+      const i = v.sightings.findIndex((s) => s.id === e.sighting.id);
+      if (i < 0) return { ...v, sightings: [...v.sightings, e.sighting] };
+      return { ...v, sightings: v.sightings.map((s, j) => (j === i ? e.sighting : s)) };
+    }
+    case "sighting-removed":
+      return { ...v, sightings: v.sightings.filter((s) => s.id !== e.id) };
     case "waypoint-failed":
       return {
         ...v,

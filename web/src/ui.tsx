@@ -1,4 +1,5 @@
-import { useState, type ReactElement, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 /** 介面元件，對應 design/pages/00-design-system；樣式在 style.css。 */
 
@@ -21,6 +22,7 @@ export const icons = {
   pause: <svg {...S}><path d="M9 6v12M15 6v12" /></svg>,
   stop: <svg className="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden><rect x="6" y="6" width="12" height="12" rx="2" /></svg>,
   map: <svg {...S}><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14" /></svg>,
+  pin: <svg {...S}><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.3" /></svg>,
   leaf: (
     <svg className="i" viewBox="0 0 24 24" aria-hidden>
       <path d="M12 21V11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -159,12 +161,38 @@ export function StatusBadge({ status }: { status: string }) {
   return <span className={`badge ${status}`}>{STATUS_LABEL[status] ?? status}</span>;
 }
 
-/** 截圖：點開看原圖。 */
+/** 截圖：點了在同一頁跳出大圖。 */
 export function Shot({ url, alt }: { url: string; alt: string }) {
+  const [open, setOpen] = useState(false);
   return (
-    <a className="shot" href={url} target="_blank" rel="noreferrer">
-      <img src={url} alt={alt} />
-    </a>
+    <>
+      <button type="button" className="shot" title="看大圖" onClick={() => setOpen(true)}>
+        <img src={url} alt={alt} />
+      </button>
+      {open && <Lightbox url={url} alt={alt} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+/** 蓋住整頁的大圖；右上角 ×、按 Esc 或點圖片外面都會關掉。 */
+function Lightbox({ url, alt, onClose }: { url: string; alt: string; onClose: () => void }) {
+  const closeBtn = useRef<HTMLButtonElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    closeBtn.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close.current();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  return createPortal(
+    <div className="lightbox" role="dialog" aria-modal="true" aria-label={alt} onClick={onClose}>
+      <button ref={closeBtn} type="button" className="lightbox-close" title="關閉" aria-label="關閉" onClick={onClose}>
+        {icons.cross}
+      </button>
+      <img src={url} alt={alt} onClick={(e) => e.stopPropagation()} />
+    </div>,
+    document.body,
   );
 }
 

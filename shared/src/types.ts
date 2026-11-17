@@ -116,7 +116,10 @@ export type BatchEvent =
   | { type: "started"; batchId: number; total: number }
   | { type: "progress"; index: number; total: number; waypointId: number | null; label: string }
   | { type: "stderr"; index: number; line: string }
+  /** 新的或更新過的 Sighting（id 相同就是更新：Sweep 中先由 stderr 存一筆，bot 結束後用 stdout 補齊）。 */
   | { type: "sighting"; sighting: StoredSighting }
+  /** Sweep 中先存的 Sighting 在 stdout 裡找不到對應，已刪掉。 */
+  | { type: "sighting-removed"; id: number }
   | { type: "waypoint-failed"; index: number; error: string; screenshotUrl?: string }
   /** Quiet Giant Search：一個 Waypoint 的答案。radius 是這點實際用的半徑（公尺）。 */
   | { type: "quiet-result"; index: number; waypointId: number | null; point: BatchPoint; radius: number; result: QuietResult; screenshotUrl?: string }

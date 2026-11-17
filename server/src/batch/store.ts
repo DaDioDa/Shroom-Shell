@@ -58,12 +58,15 @@ export function createBatch(db: Db, feature: string, params: { listId: number } 
   return Number(r.lastInsertRowid);
 }
 
+/** 要存的 Sighting；Sweep 中從 stderr 讀到的還沒有地圖位置。 */
+export type SightingInput = Omit<BotSighting, "map_position"> & { map_position: [number, number] | null };
+
 export function saveSighting(
   db: Db,
   batchId: number,
   waypointId: number | null,
   runIndex: number,
-  s: BotSighting,
+  s: SightingInput,
   runDir: string | null,
   runsDir: string,
 ): StoredSighting {
@@ -75,9 +78,30 @@ export function saveSighting(
     )
     .run(
       batchId, waypointId, s.target, s.lat, s.lng, s.spot_name, s.participant_count, s.remaining_seconds,
-      s.observed_at, s.map_position[0], s.map_position[1], s.frame, s.postcard, runDir, runIndex,
+      s.observed_at, s.map_position?.[0] ?? null, s.map_position?.[1] ?? null, s.frame, s.postcard, runDir, runIndex,
     );
   return getSighting(db, Number(r.lastInsertRowid), runsDir);
+}
+
+/** 用 bot 結束時 stdout 的完整內容蓋掉 Sweep 中先存的那筆。 */
+export function updateSighting(db: Db, id: number, s: BotSighting, runDir: string | null, runsDir: string): StoredSighting {
+  db.prepare(
+    `UPDATE sightings SET target = ?, lat = ?, lng = ?, spot_name = ?, participant_count = ?, remaining_seconds = ?,
+       observed_at = ?, map_x = ?, map_y = ?, frame = ?, postcard = ?, run_dir = ? WHERE id = ?`,
+  ).run(
+    s.target, s.lat, s.lng, s.spot_name, s.participant_count, s.remaining_seconds,
+    s.observed_at, s.map_position[0], s.map_position[1], s.frame, s.postcard, runDir, id,
+  );
+  return getSighting(db, id, runsDir);
+}
+
+export function setSightingRunDir(db: Db, id: number, runDir: string | null, runsDir: string): StoredSighting {
+  db.prepare("UPDATE sightings SET run_dir = ? WHERE id = ?").run(runDir, id);
+  return getSighting(db, id, runsDir);
+}
+
+export function deleteSighting(db: Db, id: number): void {
+  db.prepare("DELETE FROM sightings WHERE id = ?").run(id);
 }
 
 export function getSighting(db: Db, id: number, runsDir: string): StoredSighting {

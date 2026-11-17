@@ -15,7 +15,7 @@ _Avoid_: Spot（保留給 bot 的 Spot Name）、座標、point、地點
 _Avoid_: Spot List、route、路線
 
 **Teleport**:
-把手機的模擬 GPS 設到某個 Waypoint。
+把手機的模擬 GPS 設到某個 Waypoint；也可以在 Sighting 卡片上手動 Teleport 到那顆蘑菇（UI 叫「移到這裡」，Batch 執行中不能用）。
 _Avoid_: spoof、瞬移、飛
 
 **Region**:

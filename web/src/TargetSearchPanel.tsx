@@ -12,6 +12,8 @@ interface Props {
   radius: number;
   onRadiusChange: (r: number) => void;
   onStarted: (batchId: number) => void;
+  /** 有任何 Batch 在跑（手機歸它管），卡片上的「移到這裡」不能按。 */
+  deviceBusy: boolean;
 }
 
 /** 打的字在建議裡加粗。 */
@@ -28,7 +30,7 @@ function Highlight({ text, typed }: { text: string; typed: string }) {
 }
 
 /** 指定菇菇：Target 標籤、半徑、--skip-crowded、開始；失敗的 Waypoint 與 Sighting 卡片。 */
-export function TargetSearchPanel({ list, view, radius, onRadiusChange, onStarted }: Props) {
+export function TargetSearchPanel({ list, view, radius, onRadiusChange, onStarted, deviceBusy }: Props) {
   const [targets, setTargets] = useState<string[]>([]);
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
@@ -134,7 +136,7 @@ export function TargetSearchPanel({ list, view, radius, onRadiusChange, onStarte
             </div>
           ))}
           {view.sightings.map((s) => (
-            <SightingCard key={s.id} s={s} />
+            <SightingCard key={s.id} s={s} deviceBusy={deviceBusy} />
           ))}
         </Section>
       )}

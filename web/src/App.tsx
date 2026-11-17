@@ -66,7 +66,8 @@ export function App() {
   const layers = tabLayers(tab);
   const sightingFeature = layers.sightingFeature;
   const sightingView = sightingFeature ? views[sightingFeature] : null;
-  const sightingCount = sightingView?.sightings.length ?? 0;
+  // Sweep 中每找到一顆、或 bot 結束後補齊／刪掉一筆，這個陣列就換新，地圖跟著重抓。
+  const liveSightings = sightingView?.sightings ?? null;
   const sightingStatus = sightingView?.status ?? null;
   useEffect(() => {
     if (!sightingFeature) return setTabSightings([]);
@@ -78,7 +79,7 @@ export function App() {
     return () => {
       stale = true;
     };
-  }, [sightingFeature, sightingCount, sightingStatus]);
+  }, [sightingFeature, liveSightings, sightingStatus]);
   // 底部抽屜是全域的：有在跑的 Batch 就顯示它，否則顯示目前分頁的。
   const runningFeature = BATCH_FEATURES.find((f) => views[f].status === "running") ?? null;
   const drawerFeature: BatchFeature | null = runningFeature ?? batchFeature;
@@ -349,7 +350,7 @@ export function App() {
           )}
           {tab === "postcard" && <PostcardCheckPanel list={selected} waypoints={waypoints} view={view} onStarted={(id) => follow("postcard-check", id)} />}
           {tab === "history" && <HistoryPanel refreshKey={BATCH_FEATURES.map((f) => views[f].status).join()} onDetail={setHistoryDetail} />}
-          {tab === "target" && <TargetSearchPanel list={selected} view={view} radius={targetRadius} onRadiusChange={setTargetRadius} onStarted={(id) => follow("target-search", id)} />}
+          {tab === "target" && <TargetSearchPanel list={selected} view={view} radius={targetRadius} onRadiusChange={setTargetRadius} onStarted={(id) => follow("target-search", id)} deviceBusy={runningFeature !== null} />}
         </div>
       </aside>
     </div>

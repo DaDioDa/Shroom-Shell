@@ -27,6 +27,8 @@ export interface BatchDeps {
  */
 export interface BatchFeature {
   plan(point: BatchPoint): { command: string; args: string[] };
+  /** bot 每印一行 stderr 就呼叫（例如 Sweep 進行中就先存下剛找到的 Sighting）。丟錯只記 log，不影響 Batch。 */
+  onStderrLine?(ctx: { deps: BatchDeps; batchId: number; point: BatchPoint; index: number }, line: string): void;
   /** 這些 exit code 是 feature 自己看得懂的正常答案（預設只有 0）。其他 exit code 算這個 Waypoint 失敗。 */
   okExitCodes?: number[];
   /** 解析並存下結果（也可以 emit 事件）。回傳要存的 result 與這個 Waypoint 的錯誤（沒有就 null）。 */
@@ -125,6 +127,11 @@ export async function runBatch(
         onStderrLine: (line) => {
           stderr.push(line);
           deps.hub.emit(batchId, { type: "stderr", index, line });
+          try {
+            feature.onStderrLine?.({ deps, batchId, point: w, index }, line);
+          } catch (e) {
+            console.error("處理 bot stderr 失敗：", errorMessage(e));
+          }
         },
       });
       const runName = result.runDir ? basename(result.runDir) : null;

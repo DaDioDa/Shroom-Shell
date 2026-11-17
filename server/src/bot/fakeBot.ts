@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { BotSighting } from "@shell/shared";
 import type { Device } from "../device/device.js";
 import type { LatLng } from "../device/teleporter.js";
+import { localIso } from "./parseHunt.js";
 import type { BotRunRequest, BotRunResult, BotRunner } from "./runner.js";
 
 /** 1×1 的 PNG，當假截圖用。 */
@@ -82,7 +83,8 @@ export class FakeDevice implements Device {
 /** 依 cli.md 的 stderr 格式描述一筆 Sighting。 */
 export function sightingStderr(s: BotSighting, postcardPath: string | null): string[] {
   const count = s.participant_count === null ? "不明" : String(s.participant_count);
-  const time = s.remaining_seconds === null ? "尚未開始倒數" : `剩 ${s.remaining_seconds} 秒`;
+  // 「到期」是看到的時間加剩餘時間，以 bot 所在機器（本機）的時間印。
+  const time = s.remaining_seconds === null ? "尚未開始倒數" : `到期 ${localIso(new Date(Date.parse(s.observed_at) + s.remaining_seconds * 1000)).slice(0, 16).replace("T", " ")}`;
   return [
     `【找到 Target】${s.target}｜${s.spot_name}`,
     `  參與人數 ${count}｜${time}`,

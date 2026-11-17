@@ -30,7 +30,7 @@ export interface BotRunner {
   run(req: BotRunRequest): Promise<BotRunResult>;
 }
 
-export const DEFAULT_BOT_REPO = "F:\\pikmin_bloom_bot";
+export const DEFAULT_BOT_REPO = "C:\\Users\\Ss\\Shroom-Drone";
 
 export interface RealBotOptions {
   /** bot repo 路徑，預設取環境變數 BOT_REPO，再退回 DEFAULT_BOT_REPO。 */

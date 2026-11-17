@@ -139,7 +139,14 @@ button { font: inherit; }
 .card .idx { color: var(--muted); font-weight: 700; font-size: 12px; }
 .card.expired { opacity: .6; }
 .shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.shot { display: block; aspect-ratio: 4 / 5; border-radius: calc(var(--r-card) / 2); overflow: hidden; border: 1px solid var(--border); background: var(--disabled-bg); }
+.shot { display: block; width: 100%; padding: 0; aspect-ratio: 4 / 5; border-radius: calc(var(--r-card) / 2); overflow: hidden; border: 1px solid var(--border); background: var(--disabled-bg); cursor: zoom-in; }
+.shot:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+/* 截圖大圖：蓋住整頁（含地圖），右上角 × 關閉 */
+.lightbox { position: fixed; inset: 0; z-index: 5000; background: rgba(20, 28, 24, .82); display: grid; place-items: center; padding: 64px 24px 24px; }
+.lightbox img { max-width: 100%; max-height: calc(100vh - 88px); object-fit: contain; border-radius: 10px; background: var(--surface); box-shadow: 0 10px 40px rgba(0,0,0,.45); cursor: default; }
+.lightbox-close { position: fixed; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%; border: 0; padding: 0; background: var(--surface); color: var(--ink); display: grid; place-items: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+.lightbox-close:hover { background: var(--primary-tint); color: var(--primary-ink); }
+.lightbox-close svg { width: 20px; height: 20px; }
 .shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .shot-empty { aspect-ratio: 4 / 5; border: 1px dashed var(--border-strong); border-radius: calc(var(--r-card) / 2); display: grid; place-items: center; color: var(--muted); font-size: 11px; text-align: center; }
 

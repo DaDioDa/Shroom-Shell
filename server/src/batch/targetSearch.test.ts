@@ -143,12 +143,14 @@ describe("Target Search Batch", () => {
       "stderr#1   參與人數 0｜尚未開始倒數",
       "stderr#1   地圖 https://maps.google.com/?q=25.033964,121.564468",
       "stderr#1   Postcard postcard-01.png",
-      "sighting 地點1",
+      "sighting 地點1", // Sweep 中從 stderr 先存的
+      "sighting 地點1", // bot 結束後用 stdout 補齊同一筆
       "progress 2/2 乙",
       "stderr#2 【找到 Target】巨大 輝煌蘑菇｜地點2",
       "stderr#2   參與人數 0｜尚未開始倒數",
       "stderr#2   地圖 https://maps.google.com/?q=25.033964,121.564468",
       "stderr#2   Postcard postcard-01.png",
+      "sighting 地點2",
       "sighting 地點2",
       "finished",
     ]);
@@ -176,6 +178,85 @@ describe("Target Search Batch", () => {
     expect((await t.app.inject("/api/runs/fake-run-001/nope.png")).statusCode).toBe(404);
     expect((await t.app.inject("/api/runs/fake-run-001/..%2F..%2Fapp.db")).statusCode).toBe(404);
     expect((await t.app.inject("/api/runs/..%2F/app.db")).statusCode).toBe(404);
+  });
+});
+
+describe("Target Search Batch：Sweep 中即時回報 Sighting", () => {
+  const body = (listId: number) => ({ listId, targets: ["巨大 *"], radius: 500, skipCrowded: 0 });
+  const sightingEvents = (events: BatchEvent[]) => events.flatMap((e) => (e.type === "sighting" ? [e.sighting] : []));
+
+  it("stderr 一印出 Sighting 就存下並推送（截圖網址取自 Postcard 路徑）；bot 結束後用 stdout 補齊同一筆，不重複", async () => {
+    const s = sighting({ remaining_seconds: 5400, observed_at: new Date().toISOString() });
+    const t = await setup("1,1 甲", () => ({
+      ...found(s),
+      stderr: sightingStderr(s, join(dir, "runs", "fake-run-001", "postcard-01.png")),
+    }));
+    const { batchId, events } = await runBatch(t.app, body(t.listId));
+    const [early, final] = sightingEvents(events);
+    expect(early).toMatchObject({ target: "巨大 輝煌蘑菇", spot_name: "範例地點", lat: 25.033964, lng: 121.564468, participant_count: 0, waypointId: expect.any(Number) });
+    expect(early!.remaining_seconds).toBeGreaterThan(5300);
+    expect(early!.postcardUrl).toBe("/api/runs/fake-run-001/postcard-01.png");
+    expect(early!.frameUrl).toBe("/api/runs/fake-run-001/sighting-01.png");
+    expect(final).toMatchObject({ id: early!.id, observed_at: s.observed_at, remaining_seconds: 5400, map_position: [672, 814] });
+    expect((await t.app.inject(`/api/batches/${batchId}/sightings`)).json()).toHaveLength(1);
+  });
+
+  it("中止（exit 2、stdout 為空）：Sweep 中已找到的 Sighting 留著，截圖照樣找得到", async () => {
+    const t = await setup("1,1 甲", () => ({
+      exitCode: 2,
+      stdout: "",
+      stderr: [...sightingStderr(sighting(), "postcard-01.png"), "中止：畫面卡住"],
+      files: { "sighting-01.png": TINY_PNG, "postcard-01.png": TINY_PNG },
+    }));
+    const { batchId, events } = await runBatch(t.app, body(t.listId));
+    expect(events.find((e) => e.type === "waypoint-failed")).toMatchObject({ error: "畫面卡住" });
+    const rows = (await t.app.inject(`/api/batches/${batchId}/sightings`)).json() as StoredSighting[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ spot_name: "範例地點", frameUrl: "/api/runs/fake-run-001/sighting-01.png", postcardUrl: "/api/runs/fake-run-001/postcard-01.png" });
+  });
+
+  it("先存的那筆在 stdout 裡沒有：刪掉並推 sighting-removed", async () => {
+    const t = await setup("1,1 甲", () => ({ exitCode: 0, stdout: "[]", stderr: sightingStderr(sighting(), null) }));
+    const { batchId, events } = await runBatch(t.app, body(t.listId));
+    const [early] = sightingEvents(events);
+    expect(events).toContainEqual({ type: "sighting-removed", id: early!.id });
+    expect((await t.app.inject(`/api/batches/${batchId}/sightings`)).json()).toEqual([]);
+  });
+});
+
+describe("手動 Teleport（移到某筆 Sighting）", () => {
+  it("把手機的模擬 GPS 設到指定座標", async () => {
+    const t = await setup("1,1 甲", () => found());
+    const res = await t.app.inject({ method: "POST", url: "/api/teleport", payload: { lat: 25.03, lng: 121.56 } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ lat: 25.03, lng: 121.56 });
+    expect(t.device.log).toEqual(["teleport 25.03,121.56"]);
+  });
+
+  it("座標不合法：400，不動手機", async () => {
+    const t = await setup("1,1 甲", () => found());
+    for (const payload of [{}, { lat: "1", lng: 2 }, { lat: 91, lng: 0 }, { lat: 0, lng: 181 }]) {
+      expect((await t.app.inject({ method: "POST", url: "/api/teleport", payload })).statusCode).toBe(400);
+    }
+    expect(t.device.log).toEqual([]);
+  });
+
+  it("有 Batch 在跑：409，不動手機", async () => {
+    const t = await setup("1,1 甲", () => ({ exitCode: 0, stdout: "", hang: true }));
+    const { batchId } = (await t.app.inject({ method: "POST", url: "/api/batches/target-search", payload: { listId: t.listId, targets: ["巨大 *"], radius: 500, skipCrowded: 0 } })).json() as { batchId: number };
+    const res = await t.app.inject({ method: "POST", url: "/api/teleport", payload: { lat: 5, lng: 6 } });
+    expect(res.statusCode).toBe(409);
+    await t.app.inject({ method: "POST", url: `/api/batches/${batchId}/cancel`, payload: { mode: "force" } });
+    await t.app.inject(`/api/batches/${batchId}/events`); // 等 Batch 收尾
+    expect(t.device.log).not.toContain("teleport 5,6");
+  });
+
+  it("手機錯誤：500 並帶原因", async () => {
+    const t = await setup("1,1 甲", () => found());
+    t.device.failWith = new Error("adb: no devices/emulators found");
+    const res = await t.app.inject({ method: "POST", url: "/api/teleport", payload: { lat: 1, lng: 2 } });
+    expect(res.statusCode).toBe(500);
+    expect(res.json()).toEqual({ error: "adb: no devices/emulators found" });
   });
 });
 

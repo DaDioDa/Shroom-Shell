@@ -47,4 +47,6 @@ export const api = {
   deleteWaypoint: (id: number) => call<void>("DELETE", `/api/waypoints/${id}`),
   reorder: (listId: number, ids: number[]) => call<Waypoint[]>("PUT", `/api/lists/${listId}/order`, { ids }),
   importText: (id: number, text: string) => call<ImportResult>("POST", `/api/lists/${id}/import`, { text }),
+  /** 把手機的模擬 GPS 設到這裡（Batch 在跑時後端回 409）。 */
+  teleport: (lat: number, lng: number) => call<{ lat: number; lng: number }>("POST", "/api/teleport", { lat, lng }),
 };

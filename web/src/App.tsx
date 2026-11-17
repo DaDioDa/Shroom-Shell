@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { describePostcardCheck, featureName, planDiscovery, SLIDER_SPECS, sweepAreaColor, sweepRadius, tabLayers, visibleSightings, type ListFeature, type HistoryDetail, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
+import { describePostcardCheck, featureName, initialBatchView, planDiscovery, SLIDER_SPECS, sweepAreaColor, sweepAreaSquare, sweepRadius, tabLayers, visibleSightings, type ListFeature, type HistoryDetail, type StoredSighting, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { WaypointMap, type CheckMark, type HistoryPoint, type SweepArea } from "./Map.js";
 import { BatchDrawer } from "./BatchDrawer.js";
@@ -17,6 +17,7 @@ import { TargetSearchPanel } from "./TargetSearchPanel.js";
 import { useNow } from "./useNow.js";
 import { loadJson, saveJson, useStoredSlider } from "./storage.js";
 import { BATCH_FEATURES, useBatchViews, type BatchFeature } from "./useBatchView.js";
+import { BrandMark, icons } from "./ui.js";
 
 type Tab = "quiet" | "discovery" | "postcard" | "target" | "history";
 /** 有清單的功能分頁；探索區域與歷史分頁不屬於任何清單。 */
@@ -49,7 +50,8 @@ export function App() {
   const [historyDetail, setHistoryDetail] = useState<HistoryDetail | null>(null);
   // 探索區域分頁跟隨的 Discovery Batch 的 Region／半徑／間距／名稱（從歷史詳情取）。
   const [discoveryDetail, setDiscoveryDetail] = useState<HistoryDetail | null>(null);
-  const [selectedCell, setSelectedCell] = useState<CellInfo | null>(null);
+  // 點過的 Grid Cell；areaId 是它在地圖方格裡的編號（畫深色外框用）。
+  const [selectedCell, setSelectedCell] = useState<(CellInfo & { areaId: number }) | null>(null);
   const discoveryBatchId = views.discovery.batchId;
   useEffect(() => {
     if (discoveryBatchId === null) return setDiscoveryDetail(null);
@@ -78,7 +80,10 @@ export function App() {
     };
   }, [sightingFeature, sightingCount, sightingStatus]);
   // 底部抽屜是全域的：有在跑的 Batch 就顯示它，否則顯示目前分頁的。
-  const drawerView = BATCH_FEATURES.map((f) => views[f]).find((v) => v.status === "running") ?? view;
+  const runningFeature = BATCH_FEATURES.find((f) => views[f].status === "running") ?? null;
+  const drawerFeature: BatchFeature | null = runningFeature ?? batchFeature;
+  // 歷史分頁沒有自己的 Batch：沒在跑時抽屜不顯示（不拿無人巨菇的結果來充數）。
+  const drawerView = runningFeature ? views[runningFeature] : batchFeature ? view : initialBatchView;
 
   const feature = TAB_FEATURE[tab] ?? null;
   const lists = feature ? listsBy[feature] : [];
@@ -166,7 +171,7 @@ export function App() {
   const clickCell = (i: number) => {
     const o = sweepSource[i];
     if (!o || !discoveryInfo) return;
-    setSelectedCell({ regionName: discoveryInfo.name, number: o.index, lat: o.point.lat, lng: o.point.lng, radius: o.radius, verdict: o.result.verdict, reason: o.result.reason });
+    setSelectedCell({ areaId: i, regionName: discoveryInfo.name, number: o.index, lat: o.point.lat, lng: o.point.lng, radius: o.radius, verdict: o.result.verdict, reason: o.result.reason });
   };
   const discoveryBusy = views.discovery.status === "running" || views.discovery.status === "queued";
   // 探索區域分頁：排隊或執行中鎖住（不能拖）；沒在跑且使用者在調 Region（或還沒有可看的結果）時顯示編輯器與預覽，否則顯示結果。
@@ -179,8 +184,8 @@ export function App() {
   // 預覽與結果疊畫（結果是實線方格、預覽是虛線藍框），有結果後拉 slider 仍有回饋。
   const previewRadius = tab === "quiet" ? quietRadius : tab === "target" ? targetRadius : null;
   const showPreview = layers.preview && previewRadius !== null;
-  // 無人巨菇的「在地圖上新增」模式：預覽框改成可拖移（移動 Waypoint）、可拖角縮放（設定該 Waypoint 的半徑）。
-  const boxEditing = tab === "quiet" && addMode && selectedId !== null;
+  // 無人巨菇、指定菇菇的「在地圖上新增」模式：預覽框改成可拖移（移動 Waypoint）、可拖角縮放（設定該 Waypoint 的半徑）。
+  const boxEditing = previewRadius !== null && addMode && selectedId !== null;
   const previewAreas: SweepArea[] = showPreview && !boxEditing ? waypoints.map((w) => ({ lat: w.lat, lng: w.lng, radius: sweepRadius(w, previewRadius), color: "preview" as const })) : [];
   const commitWaypoint = async (id: number, patch: { lat: number; lng: number } | { radius: number }) => {
     setNotice(null);
@@ -199,7 +204,7 @@ export function App() {
   const dotDragging = tab === "postcard" && addMode && selectedId !== null;
   const pendingAdd = tab === "postcard" && editing?.mode === "add" ? { lat: editing.lat, lng: editing.lng } : null;
   const boxEditor: SweepBoxEditorState | null = boxEditing
-    ? { boxes: waypoints.map((w) => ({ id: w.id, lat: w.lat, lng: w.lng, radius: sweepRadius(w, quietRadius) })), onCommit: (id, patch) => void commitWaypoint(id, patch), onClick: (lat, lng) => void addAt(lat, lng) }
+    ? { boxes: waypoints.map((w) => ({ id: w.id, lat: w.lat, lng: w.lng, radius: sweepRadius(w, previewRadius!) })), onCommit: (id, patch) => void commitWaypoint(id, patch), onClick: (lat, lng) => void addAt(lat, lng) }
     : null;
 
   const checkSource = tab === "history" ? (historyDetail?.waypoints.flatMap((w) => (w.check ? [w.check] : [])) ?? []) : tab === "postcard" ? view.checkResults : [];
@@ -217,83 +222,136 @@ export function App() {
   const mapSightings = layers.historyPoints ? (historyDetail?.waypoints.flatMap((w) => w.sightings) ?? []) : tabSightings;
 
   const tabButton = (t: Tab, label: string) => (
-    <button className={tab === t ? "active" : ""} onClick={() => (setTab(t), setSelectedCell(null))}>
+    <button key={t} role="tab" aria-selected={tab === t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => (setTab(t), setSelectedCell(null))}>
       {label}
     </button>
   );
 
+  // Waypoint 表單嵌在清單裡：編輯時接在那一列下面，新增（美片菇）時接在清單最後。
+  const form =
+    feature && editing ? (
+      <WaypointForm
+        // 新增中的點被拖動或重點時，表單不重建，已填的 Spot Name 保留。
+        key={editing.mode === "edit" ? `edit:${editing.w.id}:${editing.w.radius}` : "add"}
+        feature={feature}
+        title={editing.mode === "edit" ? "編輯 Waypoint" : `新增 Waypoint（${editing.lat.toFixed(6)}, ${editing.lng.toFixed(6)}）`}
+        initial={editing.mode === "edit" ? { label: editing.w.label, radius: editing.w.radius, spotName: editing.w.spotName ?? null } : { label: "", radius: null, spotName: null }}
+        onSubmit={submitForm}
+        onCancel={() => setEditing(null)}
+      />
+    ) : null;
+  const editingId = editing ? (editing.mode === "edit" ? editing.w.id : "new") : null;
+  const featureBusy = batchFeature !== null && (views[batchFeature].status === "running" || views[batchFeature].status === "queued");
+
+  // 地圖上方的操作提示：新增模式、拖 Region。
+  const hint =
+    feature && addMode && selected
+      ? `點地圖加入「${selected.name}」${feature === "postcard-check" ? "；拖點可移動位置" : "；拖框可移動，拖四角可改半徑"}`
+      : editorActive
+        ? "拖 8 個把手調大小，拖框內平移；會自動對齊整數格"
+        : null;
+  // 格子的原因卡浮在被點的格子右邊。
+  const cellAnchor =
+    selectedCell && (tab === "discovery" || tab === "history") && !editorActive
+      ? {
+          lat: selectedCell.lat,
+          lng: sweepAreaSquare(selectedCell, selectedCell.radius).east,
+          content: <CellPanel cell={selectedCell} onClose={() => setSelectedCell(null)} onAdded={() => void refreshLists("quiet-search")} />,
+        }
+      : null;
+
   return (
     <div className="layout">
-      <WaypointMap
-        waypoints={mapWaypoints}
-        sightings={visibleSightings(mapSightings, now, showAllSightings)}
-        now={now}
-        areas={editorActive ? previewAreas : [...areas, ...previewAreas]}
-        editor={editorState}
-        boxEditor={boxEditor}
-        centerRef={centerRef}
-        checkMarks={checkMarks}
-        historyPoints={historyPoints}
-        region={(tab === "discovery" || tab === "history") && !editorActive ? (discoveryInfo?.region ?? null) : null}
-        onAreaClick={clickCell}
-        onMapClick={feature && selectedId !== null && addMode ? addAt : undefined}
-        onMarkerEdit={edit}
-        draggable={dotDragging}
-        onWaypointMove={(w, lat, lng) => void commitWaypoint(w.id, { lat, lng })}
-        pending={pendingAdd}
-        onPendingMove={(lat, lng) => setEditing((e) => (e?.mode === "add" ? { mode: "add", lat, lng } : e))}
-      />
-      <div className="panel">
-        <div className="tabs">
-          {tabButton("quiet", featureName("quiet-search"))}
-          {tabButton("discovery", featureName("discovery"))}
-          {tabButton("postcard", featureName("postcard-check"))}
-          {tabButton("target", featureName("target-search"))}
-          {tabButton("history", "歷史")}
-        </div>
-        <label className="muted">
-          <input type="checkbox" checked={showAllSightings} onChange={(e) => setShowAllSightings(e.target.checked)} />
-          地圖顯示全部 Sighting（含已過期）
-        </label>
-        {feature && (
-          <ListManager
-            key={feature}
-            feature={feature}
-            lists={lists}
-            selectedId={selectedId}
-            waypoints={waypoints}
-            onSelect={select}
-            onListsChanged={() => refreshLists(feature)}
-            onWaypointsChanged={reload}
-            onEdit={edit}
-            onRemoveWaypoint={removeWaypoint}
-            onMove={move}
-            addMode={addMode}
-            onToggleAdd={() => setAddMode((v) => !v)}
-            notice={notice}
-          />
-        )}
-        {feature && editing && (
-          <WaypointForm
-            // 新增中的點被拖動或重點時，表單不重建，已填的 Spot Name 保留。
-            key={editing.mode === "edit" ? `edit:${editing.w.id}:${editing.w.radius}` : "add"}
-            feature={feature}
-            title={editing.mode === "edit" ? "編輯 Waypoint" : `新增 Waypoint（${editing.lat.toFixed(6)}, ${editing.lng.toFixed(6)}）`}
-            initial={editing.mode === "edit" ? { label: editing.w.label, radius: editing.w.radius, spotName: editing.w.spotName ?? null } : { label: "", radius: null, spotName: null }}
-            onSubmit={submitForm}
-            onCancel={() => setEditing(null)}
-          />
-        )}
-        {selectedCell && (tab === "discovery" || tab === "history") && <CellPanel cell={selectedCell} onClose={() => setSelectedCell(null)} onAdded={() => void refreshLists("quiet-search")} />}
-        {tab === "quiet" && <QuietSearchPanel list={selected} waypoints={waypoints} view={view} radius={quietRadius} onRadiusChange={setQuietRadius} onStarted={(id) => follow("quiet-search", id)} />}
-        {tab === "discovery" && (
-          <DiscoveryPanel editor={editor} centerRef={centerRef} hasResult={discoveryInfo !== null} view={view} onStarted={(batchId) => (editor.setEditing(false), follow("discovery", batchId))} />
-        )}
-        {tab === "postcard" && <PostcardCheckPanel list={selected} waypoints={waypoints} view={view} onStarted={(id) => follow("postcard-check", id)} />}
-        {tab === "history" && <HistoryPanel refreshKey={BATCH_FEATURES.map((f) => views[f].status).join()} onDetail={setHistoryDetail} />}
-        {tab === "target" && <TargetSearchPanel list={selected} view={view} radius={targetRadius} onRadiusChange={setTargetRadius} onStarted={(id) => follow("target-search", id)} />}
+      <div className="map-area">
+        <WaypointMap
+          waypoints={mapWaypoints}
+          sightings={visibleSightings(mapSightings, now, showAllSightings)}
+          now={now}
+          areas={editorActive ? previewAreas : [...areas, ...previewAreas]}
+          selectedAreaId={cellAnchor ? selectedCell!.areaId : null}
+          editor={editorState}
+          boxEditor={boxEditor}
+          centerRef={centerRef}
+          checkMarks={checkMarks}
+          historyPoints={historyPoints}
+          region={(tab === "discovery" || tab === "history") && !editorActive ? (discoveryInfo?.region ?? null) : null}
+          onAreaClick={clickCell}
+          onMapClick={feature && selectedId !== null && addMode ? addAt : undefined}
+          onMarkerEdit={edit}
+          draggable={dotDragging}
+          onWaypointMove={(w, lat, lng) => void commitWaypoint(w.id, { lat, lng })}
+          pending={pendingAdd}
+          onPendingMove={(lat, lng) => setEditing((e) => (e?.mode === "add" ? { mode: "add", lat, lng } : e))}
+          anchor={cellAnchor}
+        >
+          {/* 美片菇分頁不畫 Sighting，不需要這個開關。 */}
+          {tab !== "postcard" && (
+            <label className="map-ctl map-toggle check">
+              <input type="checkbox" checked={showAllSightings} onChange={(e) => setShowAllSightings(e.target.checked)} />
+              顯示全部 Sighting（含已過期）
+            </label>
+          )}
+          {hint && (
+            <div className="map-hint">
+              {editorActive ? icons.map : icons.plus}
+              {hint}
+            </div>
+          )}
+          <BatchDrawer onFollow={(f, id) => (BATCH_FEATURES as readonly string[]).includes(f) && follow(f as BatchFeature, id)} view={drawerView} feature={drawerFeature} />
+        </WaypointMap>
       </div>
-      <BatchDrawer onFollow={(f, id) => (BATCH_FEATURES as readonly string[]).includes(f) && follow(f as BatchFeature, id)} view={drawerView} />
+      <aside className="panel">
+        <div className="brand">
+          <BrandMark />
+          <span className="name">
+            Pikmin Bloom <em>Shell</em>
+          </span>
+        </div>
+        <div className="panel-body">
+          <div className="tabs" role="tablist">
+            {tabButton("quiet", featureName("quiet-search"))}
+            {tabButton("discovery", featureName("discovery"))}
+            {tabButton("postcard", featureName("postcard-check"))}
+            {tabButton("target", featureName("target-search"))}
+            {tabButton("history", "歷史")}
+          </div>
+          {feature && (
+            <ListManager
+              key={feature}
+              feature={feature}
+              lists={lists}
+              selectedId={selectedId}
+              waypoints={waypoints}
+              onSelect={select}
+              onListsChanged={() => refreshLists(feature)}
+              onWaypointsChanged={reload}
+              onEdit={edit}
+              onRemoveWaypoint={removeWaypoint}
+              onMove={move}
+              addMode={addMode}
+              onToggleAdd={() => setAddMode((v) => !v)}
+              notice={notice}
+              editingId={editingId}
+              form={form}
+              busy={featureBusy}
+            />
+          )}
+          {tab === "quiet" && <QuietSearchPanel list={selected} view={view} radius={quietRadius} onRadiusChange={setQuietRadius} onStarted={(id) => follow("quiet-search", id)} />}
+          {tab === "discovery" && (
+            <DiscoveryPanel
+              editor={editor}
+              centerRef={centerRef}
+              result={discoveryInfo}
+              showingResult={discoveryInfo !== null && !editorActive}
+              view={view}
+              onStarted={(batchId) => (editor.setEditing(false), follow("discovery", batchId))}
+            />
+          )}
+          {tab === "postcard" && <PostcardCheckPanel list={selected} waypoints={waypoints} view={view} onStarted={(id) => follow("postcard-check", id)} />}
+          {tab === "history" && <HistoryPanel refreshKey={BATCH_FEATURES.map((f) => views[f].status).join()} onDetail={setHistoryDetail} />}
+          {tab === "target" && <TargetSearchPanel list={selected} view={view} radius={targetRadius} onRadiusChange={setTargetRadius} onStarted={(id) => follow("target-search", id)} />}
+        </div>
+      </aside>
     </div>
   );
 }

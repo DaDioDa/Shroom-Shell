@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { batchStatusText, featureName, missingSpotNames, type BatchView, type Waypoint, type WaypointList } from "@shell/shared";
+import { useState } from "react";
+import { featureName, missingSpotNames, type BatchView, type Waypoint, type WaypointList } from "@shell/shared";
 import { api } from "./api.js";
 import { CheckResultCard } from "./CheckResultCard.js";
+import { CHECK_LABEL, icons, Section, Tally } from "./ui.js";
 
 interface Props {
   list: WaypointList | null;
@@ -10,13 +11,10 @@ interface Props {
   onStarted: (batchId: number) => void;
 }
 
+/** 美片菇：開始（缺 Spot Name 時停用）與結果卡片。Spot Name 的匯入格式寫在清單區塊的「從文字匯入」裡。 */
 export function PostcardCheckPanel({ list, waypoints, view, onStarted }: Props) {
   const [startError, setStartError] = useState<string | null>(null);
-  const log = useRef<HTMLPreElement>(null);
-  useEffect(() => {
-    log.current?.scrollTo({ top: log.current.scrollHeight });
-  }, [view.stderr.length]);
-  const running = view.status === "running";
+  const busy = view.status === "running";
   const missing = missingSpotNames(waypoints);
   const nameOf = (p: { label: string; lat: number; lng: number }) => p.label || `${p.lat}, ${p.lng}`;
   const start = async () => {
@@ -28,32 +26,29 @@ export function PostcardCheckPanel({ list, waypoints, view, onStarted }: Props) 
       setStartError((e as Error).message);
     }
   };
+  const results = view.checkResults;
+  const counts = { yes: 0, no: 0, unknown: 0 };
+  for (const o of results) counts[o.result.found === true ? "yes" : o.result.found === false ? "no" : "unknown"]++;
+
   return (
-    <div>
-      <h4>{featureName("postcard-check")}</h4>
-      <p>清單：{list ? `${list.name}（${list.waypointCount}）` : "請先在上方選一份清單"}</p>
-      <p className="muted">
-        每個 Waypoint 先 Teleport，再跑 <code>check --spot-name "Spot Name"</code>。Spot Name 可在匯入時寫{" "}
-        <code>lat,lng r=300 標籤 @Spot Name</code>，或點地圖標記編輯。
-      </p>
-      <p className="muted">GPS 要夠準：<code>check</code> 只看冷啟動後的起點畫面，那顆蘑菇不在畫面上就找不到。</p>
-      {list && missing.length > 0 && <p className="errors">缺 Spot Name：{missing.map((w) => w.label || `${w.lat}, ${w.lng}`).join("、")}</p>}
-      <button disabled={!list || running || missing.length > 0} onClick={start}>
-        開始
-      </button>
-      {startError && <p className="errors">{startError}</p>}
-      <p className="muted">地圖：綠＝找到、紅＝沒找到、灰＝沒讀完。</p>
-      {view.status !== "idle" && (
-        <>
-          <p>{batchStatusText(view)}</p>
-          <pre ref={log} className="log">
-            {view.stderr.join("\n")}
-          </pre>
-          {view.checkResults.map((o) => (
+    <>
+      <Section title={featureName("postcard-check")}>
+        <p className="muted">GPS 要夠準：只看冷啟動後的起點畫面，那顆蘑菇不在畫面上就找不到。</p>
+        {list && missing.length > 0 && <p className="err">缺 Spot Name：{missing.map((w) => w.label || `${w.lat}, ${w.lng}`).join("、")}。點那一列的編輯補上。</p>}
+        <button className="btn primary block" disabled={!list || busy || missing.length > 0} onClick={start}>
+          {icons.play}開始
+        </button>
+        {!list && <p className="muted">先在上面選一份清單。</p>}
+        {startError && <p className="err">{startError}</p>}
+      </Section>
+      {results.length > 0 && (
+        <Section title="結果">
+          <Tally counts={counts} labels={CHECK_LABEL} />
+          {results.map((o) => (
             <CheckResultCard key={o.index} outcome={o} name={nameOf(o.point)} />
           ))}
-        </>
+        </Section>
       )}
-    </div>
+    </>
   );
 }

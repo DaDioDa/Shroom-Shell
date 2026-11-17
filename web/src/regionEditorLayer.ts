@@ -15,8 +15,10 @@ export interface RegionEditorState {
 }
 
 type HandleKey = Corner | Edge;
-const OK = "#1971c2";
-const BAD = "#e03131";
+/** 外框與把手：主色；太大時紅色。格子預覽：和 2R 預覽同一個藍色。（design/pages/00 的「Region：編輯中」） */
+const OK = "#12874F";
+const BAD = "#C92A2A";
+const CELL = "#1971C2";
 const km = (m: number) => (m / 1000).toFixed(1);
 
 const handlePositions = (r: Region): Record<HandleKey, LatLng> => ({ ...regionCorners(r), ...regionEdges(r) });
@@ -43,7 +45,7 @@ export function useRegionEditorLayer(map: L.Map | null, state: RegionEditorState
     const r0 = cur.current!.region;
     renderer.current = L.canvas({ padding: 0.5 });
     preview.current = L.layerGroup().addTo(map);
-    const frame = L.rectangle([[r0.south, r0.west], [r0.north, r0.east]], { color: OK, weight: 2, fillOpacity: 0.04 }).addTo(map);
+    const frame = L.rectangle([[r0.south, r0.west], [r0.north, r0.east]], { color: OK, weight: 3, fillColor: CELL, fillOpacity: 0.04 }).addTo(map);
     rect.current = frame;
     label.current = L.marker([r0.north, regionCenter(r0).lng], { interactive: false, icon: L.divIcon({ className: "", html: "", iconSize: [0, 0] }) }).addTo(map);
 
@@ -106,18 +108,23 @@ export function useRegionEditorLayer(map: L.Map | null, state: RegionEditorState
     label.current.setLatLng([r.north, regionCenter(r).lng]);
     label.current.setIcon(L.divIcon({ className: "", html: `<span class="region-size${bad ? " bad" : ""}">${km(w)} km × ${km(h)} km</span>`, iconSize: [0, 0] }));
     const pos = handlePositions(r);
-    for (const k of Object.keys(markers.current) as HandleKey[]) if (k !== dragging.current) markers.current[k]!.setLatLng(pos[k]);
+    for (const k of Object.keys(markers.current) as HandleKey[]) {
+      const m = markers.current[k]!;
+      if (k !== dragging.current) m.setLatLng(pos[k]);
+      m.getElement()?.classList.toggle("bad", !!bad);
+    }
 
     const g = preview.current;
     g.clearLayers();
     const opts = { renderer: renderer.current!, interactive: false };
     const pts = gridStats(r, spacingM, radiusM).points;
+    const cell = bad ? BAD : CELL;
     // 點太多（Region 很大、間距很小）時只畫路線，避免卡住。
     const detail = pts.length <= 2500;
     for (const p of detail ? pts : []) {
       const b = sweepAreaSquare(p, radiusM);
-      L.rectangle([[b.south, b.west], [b.north, b.east]], { ...opts, color, weight: 0.6, opacity: 0.5, fillOpacity: 0.06 }).addTo(g);
-      L.circleMarker([p.lat, p.lng], { ...opts, radius: 2.5, color, weight: 1, fillOpacity: 0.9 }).addTo(g);
+      L.rectangle([[b.south, b.west], [b.north, b.east]], { ...opts, color: cell, weight: 1.2, opacity: 0.7, dashArray: "6 5", fillOpacity: 0.05 }).addTo(g);
+      L.circleMarker([p.lat, p.lng], { ...opts, radius: 2.5, color: cell, weight: 1, fillOpacity: 0.9 }).addTo(g);
     }
     if (pts.length > 1) L.polyline(pts.map((p) => [p.lat, p.lng] as [number, number]), { ...opts, color: "#f08c00", weight: 2, opacity: 0.8 }).addTo(g);
     if (pts.length > 0) L.marker([pts[0]!.lat, pts[0]!.lng], { interactive: false, icon: L.divIcon({ className: "", html: '<span class="region-start">起點</span>', iconSize: [0, 0] }) }).addTo(g);

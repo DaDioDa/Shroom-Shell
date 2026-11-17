@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { validateWaypointForm, type ListFeature } from "@shell/shared";
+import { Field } from "./ui.js";
 
 export interface WaypointFormInitial {
   label: string;
@@ -7,7 +8,10 @@ export interface WaypointFormInitial {
   spotName: string | null;
 }
 
-/** 畫面內的 Waypoint 表單：欄位依功能決定，一次儲存，錯誤顯示在欄位旁。新增（美片菇要 Spot Name）與編輯共用。 */
+/**
+ * 畫面內的 Waypoint 表單：欄位依功能決定，一次儲存，錯誤顯示在欄位下。新增（美片菇要 Spot Name）與編輯共用。
+ * 嵌在清單裡正在編輯的那一列下面；新增時接在清單最後。
+ */
 export function WaypointForm({
   feature,
   title,
@@ -18,7 +22,7 @@ export function WaypointForm({
   feature: ListFeature;
   title: string;
   initial: WaypointFormInitial;
-  /** 回傳 patch；丟出的錯誤（例如後端 400 的原因）會顯示在表單旁。 */
+  /** 回傳 patch；丟出的錯誤（例如後端 400 的原因）會顯示在表單裡。 */
   onSubmit: (patch: { label: string; radius?: number | null; spotName?: string | null }) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -50,23 +54,28 @@ export function WaypointForm({
         void save();
       }}
     >
-      <h4>{title}</h4>
-      <label>
-        標籤 <input value={label} onChange={(e) => setLabel(e.target.value)} />
-      </label>
+      <div className="wpform-title">{title}</div>
+      <Field label="標籤">
+        <input className="input" value={label} placeholder="可留空，地圖與清單會顯示座標" autoFocus={!postcard} onChange={(e) => setLabel(e.target.value)} />
+      </Field>
       {postcard ? (
-        <label>
-          Spot Name（必填） <input value={spotName} onChange={(e) => setSpotName(e.target.value)} />
-          {errors.spotName && <span className="errors"> {errors.spotName}</span>}
-        </label>
+        <Field label="Spot Name" req err={errors.spotName}>
+          <input className={`input ${errors.spotName ? "invalid" : ""}`} value={spotName} placeholder="遊戲裡這個地點的名稱" autoFocus onChange={(e) => setSpotName(e.target.value)} />
+        </Field>
       ) : (
-        <label>
-          半徑（公尺，留空＝未設定） <input value={radiusText} inputMode="decimal" onChange={(e) => setRadiusText(e.target.value)} />
-          {errors.radius && <span className="errors"> {errors.radius}</span>}
-        </label>
+        <Field label="半徑" hint="公尺；留空＝用預設半徑" err={errors.radius}>
+          <input className={`input ${errors.radius ? "invalid" : ""}`} value={radiusText} inputMode="decimal" placeholder="例如 300" onChange={(e) => setRadiusText(e.target.value)} />
+        </Field>
       )}
-      {errors.form && <div className="errors">{errors.form}</div>}
-      <button type="submit" disabled={saving}>儲存</button> <button type="button" onClick={onCancel}>取消</button>
+      {errors.form && <span className="err">{errors.form}</span>}
+      <div className="line">
+        <button type="submit" className="btn small primary" disabled={saving}>
+          儲存
+        </button>
+        <button type="button" className="btn small" onClick={onCancel}>
+          取消
+        </button>
+      </div>
     </form>
   );
 }

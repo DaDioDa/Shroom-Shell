@@ -18,7 +18,7 @@ export interface SweepBoxEditorState {
   onClick: (lat: number, lng: number) => void;
 }
 
-const COLOR = "#1971c2";
+const COLOR = "#1971C2";
 const CORNERS: BoxCorner[] = ["nw", "ne", "se", "sw"];
 /** 滑鼠移動少於這個像素就當成單擊。 */
 const CLICK_TOLERANCE_PX = 4;
@@ -27,7 +27,7 @@ const bounds = (c: LatLng, r: number): L.LatLngBoundsExpression => {
   const b = sweepAreaSquare(c, r);
   return [[b.south, b.west], [b.north, b.east]];
 };
-const sizeIcon = (r: number) => L.divIcon({ className: "", html: `<span class="region-size">R ${r} m</span>`, iconSize: [0, 0] });
+const sizeIcon = (r: number) => L.divIcon({ className: "", html: `<span class="region-size box">R ${r} m</span>`, iconSize: [0, 0] });
 
 /**
  * 無人巨菇「在地圖上新增」模式：每個 Waypoint 的 2R 框可拖本體移動、拖四角縮放。
@@ -89,7 +89,7 @@ export function useSweepBoxLayer(map: L.Map | null, state: SweepBoxEditorState |
       // 四角縮放：維持以 Waypoint 為中心的正方形。
       const pos = sweepBoxCorners(center, radius);
       for (const k of CORNERS) {
-        const m = add(L.marker([pos[k].lat, pos[k].lng], { draggable: true, autoPanOnFocus: false, icon: L.divIcon({ className: `region-handle ${k}`, iconSize: [14, 14] }), zIndexOffset: 1000 }));
+        const m = add(L.marker([pos[k].lat, pos[k].lng], { draggable: true, autoPanOnFocus: false, icon: L.divIcon({ className: `region-handle box ${k}`, iconSize: [12, 12] }), zIndexOffset: 1000 }));
         m.on("drag", (ev) => {
           radius = radiusFromCorner(center, (ev as L.LeafletMouseEvent).latlng);
           redraw(k);
